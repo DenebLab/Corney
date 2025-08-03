@@ -1,8 +1,5 @@
 ﻿using Corney.Features.App;
-using Corney.Features.Cron.ReqRes;
-using Corney.Features.Cron.Service;
-using Corney.Features.Monitors.Services;
-using Corney.Features.Processes.Services;
+
 using Deneblab.Common.Host;
 using Deneblab.Common.Logging;
 using MediatR;
@@ -11,10 +8,14 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
+using System.Runtime.Versioning;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Corney.Core.Features.Cron.Service;
+using Corney.Features.Monitors;
+using Corney.Features.Processes;
 using ZLogger.Providers;
 
 namespace Corney;
@@ -44,6 +45,7 @@ internal static class App
     ///     The main entry point for the application.
     /// </summary>
     [STAThread]
+    [SupportedOSPlatform("windows6.1")]
     public static void Main(string[] args)
     {
         const string mutexName = "Global\\Corney_SingleInstance";
@@ -75,6 +77,7 @@ internal static class App
         }
     }
 
+    [SupportedOSPlatform("windows6.1")]
     public static async Task MainAsyncNew(string[] args, CorneyRegistry registry)
     {
         var host = Host.CreateDefaultBuilder(args)
@@ -86,6 +89,7 @@ internal static class App
                 services.AddTransient<ProcessWrapper>();
                 services.AddHostedService<MinuteBackgroundService>();
                 services.AddSingleton<ConfigFileMonitorService>();
+                services.AddSingleton<FileWatchHelpers>();
 
 
                 services.AddMediatR(cfg => { cfg.RegisterServicesFromAssembly(typeof(App).Assembly); });
@@ -119,7 +123,7 @@ internal static class App
         var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
 
 
-        _log.Info($"Aplication: {registry.AppEnv.AppVersion.FullName}");
+        _log.Info($"Application: {registry.AppEnv.AppVersion.FullName}");
 
         var mediator = host.Services.GetRequiredService<IMediator>();
 

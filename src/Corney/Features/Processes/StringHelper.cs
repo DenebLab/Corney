@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Corney.Features.Processes.Services
+namespace Corney.Features.Processes
 {
     /// <summary>
     /// Helper extension class for dealing with strings.

@@ -1,7 +1,7 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
 using Corney.Features.App;
-using Corney.Features.Monitors.Services;
+using Corney.Features.Monitors;
 using MediatR;
 using Microsoft.Extensions.Logging;
 

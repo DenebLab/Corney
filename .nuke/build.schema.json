@@ -30,6 +30,7 @@
         "Publish",
         "PublishAzureDevOpsArtifacts",
         "PublishAzureDevOpsStorage",
+        "PublishLocal",
         "PublishRobeNova",
         "PushNuGetToAzureArtifacts",
         "Restore",

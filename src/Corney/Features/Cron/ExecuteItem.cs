@@ -1,4 +1,4 @@
-﻿namespace Corney.Features.Cron.Models
+﻿namespace Corney.Core.Features.Cron.Models
 {
     public class ExecuteItem
     {

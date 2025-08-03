@@ -2,5 +2,5 @@
 
 public class CorneyConfig
 {
-    public string[] CrontabFiles { get; set; }
+    public string[] CrontabFiles { get; set; } = [];
 }

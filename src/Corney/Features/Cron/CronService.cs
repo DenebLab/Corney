@@ -1,16 +1,19 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Concurrency;
+using System.Reactive.Disposables;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
 using Corney.Common.Extensions;
 using Corney.Features.App;
-using Corney.Features.Cron.Models;
-using Corney.Features.Processes.Services;
+using Corney.Features.Cron;
+using Corney.Features.Processes;
 using Deneblab.Common.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace Corney.Features.Cron.Service;
+namespace Corney.Core.Features.Cron.Service;
 
 public class CronService : ICronService
 {
@@ -35,14 +38,15 @@ public class CronService : ICronService
 
     public void Start(string[] crontabFiles)
     {
-        _log.Info($"Start CronService: {_corneyRegistry.AppVersion}");
+        _log.Info($"Start CronService: {_corneyRegistry.AppVersion.Sem}");
         InitWork(crontabFiles);
     }
 
     public void Restart(string[] cronFiles)
     {
-        _log.Info($"Restart CronService: {_corneyRegistry.AppVersion}");
-
+        _log.Info($"Restart CronService: {_corneyRegistry.AppVersion.Sem}");
+        var c = _nextSchedule as CompositeDisposable;
+        c?.Dispose();
 
 
         _nextSchedule?.Dispose();
@@ -142,7 +146,24 @@ public class CronService : ICronService
 
     private void ScheduleNext(DateTime next, Guid marker)
     {
-       
+        _log.Debug($"ScheduleNext; Marker: {marker}; Set next time: {next.ToLocalTime()};");
+        var dateTimeOffset = new DateTimeOffset(next);
+        if (_nextSchedule != null)
+        {
+            var c = _nextSchedule as CompositeDisposable;
+            c?.Dispose();
+        }
+
+
+        _nextSchedule = Observable
+            .Timer(dateTimeOffset, Scheduler.CurrentThread)
+            .Timestamp()
+            .FirstAsync()
+            .Subscribe(x =>
+            {
+                Task.Run(() => { Execute(next, marker); });
+                //Execute(next);
+            });
     }
 
     private void GenerateNext(DateTime next, Guid marker)
@@ -200,7 +221,8 @@ public class CronService : ICronService
                 _cronDefinitions.Clear();
                 foreach (var crontabFile in cronFiles)
                 {
-                    var list = CrontabFileParser.Read(crontabFile);
+                    var crontabFileParser = _serviceProvider.GetRequiredService<CrontabFileParser>();
+                    var list = crontabFileParser.Read(crontabFile);
                     _cronDefinitions.Add(crontabFile, list);
                 }
             }

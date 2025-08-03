@@ -1,25 +1,26 @@
-using Deneblab.AbcVersion;
-using Helpers;
-using Helpers.Syrup;
-using Nuke.Common;
-using Nuke.Common.CI.AzurePipelines;
-using Nuke.Common.IO;
-using Nuke.Common.ProjectModel;
-using Nuke.Common.Tools.DotNet;
-using Nuke.Common.Tools.NuGet;
-using Nuke.Common.Utilities.Collections;
-using Serilog;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using Deneblab.AbcVersion;
+using Helpers;
 using Helpers.Azure;
+using Nuke.Common;
+using Nuke.Common.CI.AzurePipelines;
+using Nuke.Common.IO;
+using Nuke.Common.ProjectModel;
 using Nuke.Common.Tooling;
+using Nuke.Common.Tools.DotNet;
+using Nuke.Common.Tools.NuGet;
+using Nuke.Common.Utilities.Collections;
+using Serilog;
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
 
 class Build : NukeBuild
 {
+    [Parameter] readonly string AzureDevOpsToken = Environment.GetEnvironmentVariable("SYSTEM_ACCESSTOKEN");
+
     /// Support plugins are available for:
     /// - JetBrains ReSharper        https://nuke.build/resharper
     /// - JetBrains Rider            https://nuke.build/rider
@@ -29,7 +30,6 @@ class Build : NukeBuild
 
     [Parameter("Configuration to build - Default is 'Debug' (local) or 'Release' (server)")]
     readonly Configuration Configuration = IsLocalBuild ? Configuration.Debug : Configuration.Release;
-    [Parameter] readonly string AzureDevOpsToken = Environment.GetEnvironmentVariable("SYSTEM_ACCESSTOKEN");
 
     readonly bool IsAzureDevOps = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AGENT_NAME")) == false;
     [Solution] readonly Solution Solution;
@@ -97,7 +97,6 @@ class Build : NukeBuild
         });
 
     Target PublishAzureDevOpsArtifacts => _ => _
-     
         .Produces(ArtifactsDir / "*.nupkg")
         .OnlyWhenStatic(() => IsAzureDevOps)
         .Executes(() =>
@@ -111,7 +110,6 @@ class Build : NukeBuild
         });
 
     Target PushNuGetToAzureArtifacts => _ => _
-
         .OnlyWhenStatic(() => IsAzureDevOps)
         .Executes(() =>
         {
@@ -173,10 +171,7 @@ class Build : NukeBuild
             var storageConnectionString = Environment.GetEnvironmentVariable("azureStorageConnectionStringKey1");
             Log.Debug($"Build; azureStorageConnectionStringKey1: {storageConnectionString}");
             var files = Directory.GetFiles(syrupDir).ToList();
-            foreach (var f in files)
-            {
-                Log.Information($"File to publish: {f}");
-            }
+            foreach (var f in files) Log.Information($"File to publish: {f}");
 
             var client = AzureSyrupTools.Create(storageConnectionString, blobName);
             await client.UploadFiles(files);
@@ -190,72 +185,74 @@ class Build : NukeBuild
         });
 
     Target Syrup => _ => _
-    .DependsOn(Publish)
-    .Executes(() =>
+        .DependsOn(Publish)
+        .Executes(() =>
 
-    {
-        var p = CorneyWinProject;
-        if (p == null) return;
-
-
-
-        // dirs
-        var slimBuildDir = TmpBuild / p.Name / "slim-build";
-        var syrupDir = TmpBuild / p.Name / "syrup";
-        var syrupBuildDir = TmpBuild / p.Name / "syrup-build";
-        var srcBuild = SourceDirectory / "build";
-        var srcSyrup = srcBuild / "syrup" / "scripts";
-        var mainDir = syrupBuildDir / "main";
-        var appDir = mainDir / p.Name;
-        var othersDir = syrupBuildDir / "others";
-        var robeOtherUpdaterDir = othersDir / "RobeNovaUpdater";
+        {
+            var p = CorneyWinProject;
+            if (p == null) return;
 
 
-
-        // create dirs
-        syrupDir.CreateOrCleanDirectory();
-        robeOtherUpdaterDir.CreateOrCleanDirectory();
+            // dirs
+            var slimBuildDir = TmpBuild / p.Name / "slim-build";
+            var syrupDir = TmpBuild / p.Name / "syrup";
+            var syrupBuildDir = TmpBuild / p.Name / "syrup-build";
+            var srcBuild = SourceDirectory / "build";
+            var srcSyrup = srcBuild / "syrup" / "scripts";
+            var mainDir = syrupBuildDir / "main";
+            var appDir = mainDir / p.Name;
+            var outDir = TmpBuild / p.Name / "build";
+            
 
 
 
-        // main directory
-        slimBuildDir.Copy(appDir);
+            // create dirs
+            syrupDir.CreateOrCleanDirectory();
+            syrupBuildDir.CreateOrCleanDirectory();
 
-        // scripts
-        srcSyrup.CopyToDirectory(syrupBuildDir / "_syrup", ExistsPolicy.MergeAndOverwrite);
+            // main directory
+            outDir.Copy(appDir);
 
-        // nuget definition
-        var srcNugetFile = srcBuild / "syrup" / "spec" / "nuget.nuspec";
-        var dstNugetFile = syrupBuildDir / $"{p.Name}.nuspec";
-        srcNugetFile.Copy(dstNugetFile);
+            // scripts
+            srcSyrup.CopyToDirectory(syrupBuildDir / "_syrup", ExistsPolicy.MergeAndOverwrite);
 
-        // set version
-        var text = System.IO.File.ReadAllText(srcNugetFile);
-        var r = text.Replace("{Version}", AbcVersion.SemVersion);
-        System.IO.File.WriteAllText(dstNugetFile, r, Encoding.UTF8);
+            // nuget definition
+            var srcNugetFile = srcBuild / "syrup" / "spec" / "nuget.nuspec";
+            var dstNugetFile = syrupBuildDir / $"{p.Name}.nuspec";
+            srcNugetFile.Copy(dstNugetFile);
 
-        DataChangeHelper.FixDate(slimBuildDir);
+            // set version
+            var text = File.ReadAllText(srcNugetFile);
+            var r = text.Replace("{Version}", AbcVersion.SemVersion);
+            File.WriteAllText(dstNugetFile, r, Encoding.UTF8);
 
-        Log.Information($"Make nuget; Src: {slimBuildDir}; Dst: {syrupDir}");
+            DataChangeHelper.FixDate(slimBuildDir);
 
-
-        NuGetTasks.NuGetPack(o => o
-            .SetOutputDirectory(syrupDir)
-            .SetProcessWorkingDirectory(syrupBuildDir)
-            .SetNoPackageAnalysis(true)
-        );
+            Log.Information($"Make nuget; Src: {slimBuildDir}; Dst: {syrupDir}");
 
 
-        var nugetFiles = syrupDir.GlobFiles("*.nupkg");
+            NuGetTasks.NuGetPack(o => o
+                .SetOutputDirectory(syrupDir)
+                .SetProcessWorkingDirectory(syrupBuildDir)
+                .SetNoPackageAnalysis(true)
+            );
 
-        foreach (var file in nugetFiles)
-            SyrupTools.MakeSyrupFile(
-                file,
-                BuildDate,
-                AbcVersion.SemVersion,
-                AbcVersion.GitBranch,
-                p.Name);
-    });
+
+            var nugetFiles = syrupDir.GlobFiles("*.nupkg");
+
+            foreach (var file in nugetFiles)
+                SyrupTools.MakeSyrupFile(
+                    file,
+                    BuildDate,
+                    AbcVersion.SemVersion,
+                    AbcVersion.GitBranch,
+                    p.Name);
+        });
+
+
+    Target PublishLocal => _ => _
+        .DependsOn(Information, Publish);
+
     Target PublishRobeNova => _ => _
         .DependsOn(Information, Syrup, PublishAzureDevOpsStorage, PublishAzureDevOpsArtifacts,
             PushNuGetToAzureArtifacts);

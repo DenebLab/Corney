@@ -15,8 +15,8 @@ The project uses NUKE build system with cross-platform support:
 - **Direct build**: `dotnet build src/build/_build.csproj`
 
 Main build targets:
-- `Publish` (default): Complete build with packaging and publishing
-- `BuildAll`: Build all projects
+- `PublishLocal` (default): Complete build with packaging and publishing
+- `PublishRobeNova` : Complete build on build server
 - `Clean`: Clean build artifacts 
 - `Restore`: Restore NuGet packages
 - `PublishLocalStandalone`: Build and copy to dev/app.standalone/

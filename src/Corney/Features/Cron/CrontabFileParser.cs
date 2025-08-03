@@ -4,21 +4,23 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
-using Corney.Features.Cron.Models;
 using Cronos;
 using Deneblab.Common.Logging;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Corney.Features.Cron.Service;
+namespace Corney.Features.Cron;
 
 public class CrontabFileParser
 {
-    private static readonly ILogger<CronService> _log = NullLogger<CronService>.Instance;
-
     private static readonly char[] _delimiterChars = { ' ', '\t' };
+    private readonly ILogger<CrontabFileParser> _log;
 
-    public static List<CronDefinition> Read(string crontabFile)
+    public CrontabFileParser(ILogger<CrontabFileParser> log)
+    {
+        _log = log;
+    }
+
+    public List<CronDefinition> Read(string crontabFile)
     {
         var l = new List<CronDefinition>();
         var s = Strings(crontabFile);
@@ -59,7 +61,7 @@ public class CrontabFileParser
         return l;
     }
 
-    private static string[] Strings(string crontabFile)
+    private string[] Strings(string crontabFile)
     {
         var counter = 0;
         const int max = 10;
@@ -81,7 +83,7 @@ public class CrontabFileParser
         return new string[] { };
     }
 
-    private static void WriteToLog(string definition, CronDefinition cronDefinition)
+    private void WriteToLog(string definition, CronDefinition cronDefinition)
     {
         var sb = new StringBuilder();
         sb.AppendLine("Parse result:");

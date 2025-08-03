@@ -7,3 +7,18 @@ public record MinuteExecutionNotification(DateTime ExecutionTime) : INotificatio
 
 public record AppStartingEvent : INotification;
 public record AppStartedEvent : INotification;
+
+public class StartCorneyReq : INotification
+{
+    public string[] CrontabFiles { get; }
+
+    public StartCorneyReq(string[] crontabFiles)
+    {
+        CrontabFiles = crontabFiles;
+    }
+}
+
+public class StopCorneyReq : INotification
+{
+
+}

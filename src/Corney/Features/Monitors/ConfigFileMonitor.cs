@@ -2,17 +2,17 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reactive.Disposables;
+using System.Reactive.Linq;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Corney.Common.Io;
 using Corney.Features.App;
-using Corney.Features.Monitors.Helpers;
-using Corney.Features.Monitors.ReqRes;
 using Deneblab.Common.Logging;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
-namespace Corney.Features.Monitors.Services;
+namespace Corney.Features.Monitors;
 
 public class ConfigFileMonitorService : IDisposable
 {
@@ -20,18 +20,22 @@ public class ConfigFileMonitorService : IDisposable
 
     private readonly Channel<FileSystemEventArgs> _channel = Channel.CreateUnbounded<FileSystemEventArgs>();
 
-
+    private readonly CompositeDisposable _configDisposable = new();
     private readonly string _configFilePath;
+    private readonly FileWatchHelpers _fileWatchHelpers;
 
     private readonly ILogger<ConfigFileMonitorService> _log;
     private readonly IMediator _mediator;
     private IObservable<FileSystemEventArgs> _configFileObservable;
     private int _counter;
 
-    public ConfigFileMonitorService(ILogger<ConfigFileMonitorService> log, IMediator mediator, CorneyRegistry registry)
+    public ConfigFileMonitorService(ILogger<ConfigFileMonitorService> log, IMediator mediator,
+        FileWatchHelpers fileWatchHelpers,
+        CorneyRegistry registry)
     {
         _log = log;
         _mediator = mediator;
+        _fileWatchHelpers = fileWatchHelpers;
         _configFilePath = registry.ConfigFilePath;
         Registry = registry;
         Task.Factory.StartNew(ChannelConsumerProcess, TaskCreationOptions.LongRunning);
@@ -42,7 +46,7 @@ public class ConfigFileMonitorService : IDisposable
     public void Dispose()
     {
         _log.Debug("Dispose");
-       // _configDisposable.Dispose();
+        _configDisposable.Dispose();
 
         ClearDisposable();
     }
@@ -117,8 +121,8 @@ public class ConfigFileMonitorService : IDisposable
 
     public void Initialize()
     {
-        //_configFileObservable = FileWatchHelpers.CreateForFile(_configFilePath);
-        //_configDisposable.Add(_configFileObservable.Subscribe(WriteToChannel));
+        _configFileObservable = _fileWatchHelpers.CreateForFile(_configFilePath);
+        _configDisposable.Add(_configFileObservable.Subscribe(WriteToChannel));
         _ = MonitorFilesInConfig(_configFilePath);
     }
 
@@ -166,14 +170,14 @@ public class ConfigFileMonitorService : IDisposable
         foreach (var filesCrontabFile in filesToObserve)
         {
             _log.Debug($"File to monitor: {filesCrontabFile}");
-           // var cronFile = FileWatchHelpers.CreateForFile(filesCrontabFile);
-           // cronFilesObservable.Add(cronFile);
+            var cronFile = _fileWatchHelpers.CreateForFile(filesCrontabFile);
+            cronFilesObservable.Add(cronFile);
             list.Add(filesCrontabFile);
         }
 
 
-        //var dis = cronFilesObservable.Merge().Subscribe(WriteToChannel);
-        //_cfd.Add(dis);
+        var dis = cronFilesObservable.Merge().Subscribe(WriteToChannel);
+        _cfd.Add(dis);
         return list.ToArray();
     }
 }

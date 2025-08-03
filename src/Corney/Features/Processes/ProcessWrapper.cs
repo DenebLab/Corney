@@ -1,16 +1,15 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
-using Corney.Features.Cron.Models;
+using Corney.Core.Features.Cron.Models;
 using Deneblab.Common.Logging;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Corney.Features.Processes.Services;
+namespace Corney.Features.Processes;
 
 public class ProcessWrapper
 {
-    private readonly ILogger<ProcessWrapper> _log = NullLogger<ProcessWrapper>.Instance;
+    private readonly ILogger<ProcessWrapper> _log;
 
     public ProcessWrapper()
     {
