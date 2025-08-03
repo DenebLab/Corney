@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using Corney.Common.Logging;
 using Corney.Core.Features.Cron.Models;
 using Deneblab.Common.Logging;
 using Microsoft.Extensions.Logging;
@@ -50,15 +51,15 @@ public class ProcessWrapper
 
                 if (!process.Start())
                 {
-                    _log.Error($"Failed to start process: {item.Program}");
+                    _log.LogError(LogMessages.ProcessStartFailed, LogMessages.ProcessStartFailedTemplate, item.Program);
                     throw new InvalidOperationException($"Failed to start process: {item.Program}");
                 }
 
-                _log.Debug($"Process started with ID: {process.Id}");
+                _log.LogDebug(LogMessages.ProcessStarted, LogMessages.ProcessStartedTemplate, process.Id, item.Program);
             }
             catch (Exception e)
             {
-                _log.Error($"Error starting process '{item.Program}': {e.Message}");
+                _log.LogError(LogMessages.ProcessError, LogMessages.ProcessErrorTemplate, item.Program, e.Message);
                 throw; // Re-throw to let caller handle the error
             }
         } // Process gets disposed here

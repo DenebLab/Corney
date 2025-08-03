@@ -1,4 +1,5 @@
-﻿using Corney.Core.Features.Cron.Service;
+﻿using Corney.Common.Logging;
+using Corney.Core.Features.Cron.Service;
 using Corney.Features.App;
 using Corney.Features.Cron;
 using Corney.Features.Monitors;
@@ -123,7 +124,7 @@ internal static class App
         var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
 
 
-        _log.Info($"Application: {registry.AppEnv.AppVersion.FullName}");
+        _log.LogInformation(LogMessages.ApplicationStarted, LogMessages.ApplicationStartedTemplate, registry.AppEnv.AppVersion.FullName);
 
         var mediator = host.Services.GetRequiredService<IMediator>();
 

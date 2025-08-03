@@ -1,4 +1,5 @@
-﻿using MediatR;
+﻿using Corney.Common.Logging;
+using MediatR;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
@@ -19,7 +20,7 @@ public class MinuteExecutionHandler : INotificationHandler<MinuteExecutionNotifi
 
     public Task Handle(MinuteExecutionNotification notification, CancellationToken cancellationToken)
     {
-        _log.Info($"Minute execution completed at: {notification.ExecutionTime}");
+        _log.LogInformation(LogMessages.MinuteExecutionCompleted, LogMessages.MinuteExecutionCompletedTemplate, notification.ExecutionTime);
         return Task.CompletedTask;
     }
 }
@@ -47,7 +48,7 @@ public class MinuteBackgroundService : BackgroundService
                 var nextMinute = now.AddSeconds(-now.Second).AddMilliseconds(-now.Millisecond).AddMinutes(1);
                 var delay = nextMinute - now;
 
-                _log.Debug($"Next execution in {delay.TotalSeconds:F0}s");
+                _log.LogDebug(LogMessages.NextExecutionScheduled, LogMessages.NextExecutionScheduledTemplate, delay.TotalSeconds);
 
                 try
                 {

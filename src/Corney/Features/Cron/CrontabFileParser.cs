@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Corney.Common.Logging;
 using Cronos;
 using Deneblab.Common.Logging;
 using Microsoft.Extensions.Logging;
@@ -116,7 +117,7 @@ public class CrontabFileParser
             }
             catch (Exception)
             {
-                _log.Warn($"SEE-1269; File not available [{counter}/{max}]; Path: {crontabFile}");
+                _log.LogWarning(LogMessages.FileReadRetry, LogMessages.FileReadRetryTemplate, counter, max, crontabFile);
             }
 
             Thread.Sleep(300);
@@ -138,7 +139,7 @@ public class CrontabFileParser
             }
             catch (Exception)
             {
-                _log.Warn($"SEE-1269; File not available [{counter}/{max}]; Path: {crontabFile}");
+                _log.LogWarning(LogMessages.FileReadRetry, LogMessages.FileReadRetryTemplate, counter, max, crontabFile);
             }
 
             await Task.Delay(300);

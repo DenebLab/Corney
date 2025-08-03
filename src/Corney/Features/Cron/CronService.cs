@@ -7,6 +7,7 @@ using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Corney.Common.Extensions;
+using Corney.Common.Logging;
 using Corney.Features.App;
 using Corney.Features.Cron;
 using Corney.Features.Processes;
@@ -18,7 +19,7 @@ namespace Corney.Core.Features.Cron.Service;
 
 public class CronService : ICronService, IDisposable
 {
-    private readonly ReaderWriterLockSlim _stateLock = new();
+    private readonly ReaderWriterLockSlim _stateLock = new(LockRecursionPolicy.SupportsRecursion);
     private readonly CorneyRegistry _corneyRegistry;
 
     private readonly Dictionary<string, List<CronDefinition>> _cronDefinitions = new(StringComparer.OrdinalIgnoreCase);
@@ -38,13 +39,13 @@ public class CronService : ICronService, IDisposable
 
     public void Start(string[] crontabFiles)
     {
-        _log.Info($"Start CronService: {_corneyRegistry.AppVersion.Sem}");
+        _log.LogInformation(LogMessages.CronServiceStarted, LogMessages.CronServiceStartedTemplate, _corneyRegistry.AppVersion.Sem);
         InitWork(crontabFiles);
     }
 
     public void Restart(string[] cronFiles)
     {
-        _log.Info($"Restart CronService: {_corneyRegistry.AppVersion.Sem}");
+        _log.LogInformation(LogMessages.CronServiceRestarted, LogMessages.CronServiceRestartedTemplate, _corneyRegistry.AppVersion.Sem);
         var c = _nextSchedule as CompositeDisposable;
         c?.Dispose();
 
@@ -55,13 +56,13 @@ public class CronService : ICronService, IDisposable
 
     public void Stop()
     {
-        _log.Info("Stop CronService");
+        _log.LogInformation(LogMessages.CronServiceStopped, LogMessages.CronServiceStoppedTemplate);
         _nextSchedule?.Dispose();
     }
 
     public void Dispose()
     {
-        _log.Debug("Disposing CronService");
+        _log.LogDebug("Disposing CronService");
         _nextSchedule?.Dispose();
         _stateLock?.Dispose();
     }
@@ -74,10 +75,10 @@ public class CronService : ICronService, IDisposable
         var start = DateTime.UtcNow;
         var startDown = start.RoundDown(TimeSpan.FromSeconds(60));
         var next = startDown.AddMinutes(1);
-        _log.Info($"Cron will be processing items from; Local: {next.ToLocalTime()};");
+        _log.LogInformation("Cron will be processing items from local time {NextExecutionTime}", next.ToLocalTime());
         WriteTasksToLog();
         _log.Debug("*** New round  ***");
-        _log.Debug($"InitWork; Marker: {marker}");
+        _log.LogDebug("InitWork started with marker {Marker}", marker);
         GenerateNext(next, marker);
         ScheduleNext(next, marker);
     }
@@ -89,20 +90,21 @@ public class CronService : ICronService, IDisposable
         var from = DateTimeOffset.Now;
         var to = DateTimeOffset.Now.AddHours(24);
         const int showNumberJobs = 2;
-        _log.Debug(
-            $"Jobs (first {showNumberJobs} tasks every job from crontab file) Range; form: {from} to: {to}; ");
+        _log.LogDebug(
+            "Displaying first {JobCount} tasks from each crontab file in range {FromTime} to {ToTime}", 
+            showNumberJobs, from, to);
 
         try
         {
-            _log.Debug("Collect definitions to list");
+            _log.LogDebug("Collecting definitions to list");
 
             var definitions = _cronDefinitions.Values.SelectMany(x => x).ToList();
 
-            _log.Debug($"Iterate definitions. Itames number: {definitions.Count}");
+            _log.LogDebug("Iterating {DefinitionCount} cron definitions", definitions.Count);
 
             foreach (var cronDefinition in definitions)
             {
-                _log.Debug($"Definition: {cronDefinition.ExecutePart}");
+                _log.LogDebug("Processing definition: {ExecutePart}", cronDefinition.ExecutePart);
                 var occurrence = cronDefinition.Expression.GetOccurrences(
                     from,
                     to, TimeZoneInfo.Local).ToList();
@@ -113,24 +115,22 @@ public class CronService : ICronService, IDisposable
         }
         catch (Exception e)
         {
-            _log.Error("Error in WriteTasksToLog");
-            _log.Error(e.Message);
-            _log.Error(e);
+            _log.LogError(e, "Error occurred in WriteTasksToLog: {ErrorMessage}", e.Message);
         }
 
         foreach (var valueTuple in list.OrderBy(x => x.Item2))
-            _log.Debug($"{valueTuple.Item2} - {valueTuple.Item1}");
+            _log.LogDebug("Scheduled: {ScheduledTime} - {Command}", valueTuple.Item2, valueTuple.Item1);
     }
 
 
     private void Execute(DateTime date, Guid marker)
     {
-        _log.Debug(
-            $"Execute; Marker: {marker}; Time: {date.ToLocalTime()}; The number items to run: {_itemsToRunOnNextMinute.Count}");
+        _log.LogDebug(LogMessages.CronExecutionStarted, LogMessages.CronExecutionStartedTemplate, 
+            marker, date.ToLocalTime(), _itemsToRunOnNextMinute.Count);
         
         if (!_stateLock.TryEnterWriteLock(TimeSpan.FromSeconds(30)))
         {
-            _log.Error("Failed to acquire write lock for Execute operation within timeout");
+            _log.LogError(LogMessages.CronLockTimeout, LogMessages.CronLockTimeoutTemplate, "write", "Execute");
             return;
         }
         
@@ -151,8 +151,8 @@ public class CronService : ICronService, IDisposable
 
             var next = date.AddMinutes(1);
             var nextMarker = Guid.NewGuid();
-            _log.Debug("*** Next round  ***");
-            _log.Debug($"Old marker: {marker}; Next marker: {nextMarker}");
+            _log.LogDebug("Starting next cron execution round");
+            _log.LogDebug(LogMessages.CronExecutionCompleted, LogMessages.CronExecutionCompletedTemplate, marker, nextMarker);
             GenerateNext(next, nextMarker);
             ScheduleNext(next, nextMarker);
         }
@@ -164,7 +164,7 @@ public class CronService : ICronService, IDisposable
 
     private void ScheduleNext(DateTime next, Guid marker)
     {
-        _log.Debug($"ScheduleNext; Marker: {marker}; Set next time: {next.ToLocalTime()};");
+        _log.LogDebug(LogMessages.CronNextScheduled, LogMessages.CronNextScheduledTemplate, marker, next.ToLocalTime());
         var dateTimeOffset = new DateTimeOffset(next);
         if (_nextSchedule != null)
         {
@@ -187,7 +187,7 @@ public class CronService : ICronService, IDisposable
     private void GenerateNext(DateTime next, Guid marker)
     {
         // Dates in cron file are in "local time". We should convert next to local time. 
-        _log.Debug("Start GenerateNext");
+        _log.LogDebug("Starting GenerateNext operation");
         var nextLocal = next.ToLocalTime();
         var counter = 0;
         const int max = 10;
@@ -196,13 +196,13 @@ public class CronService : ICronService, IDisposable
         {
             counter++;
             if (counter == max) break;
-            _log.Debug($"GenerateNext; Try: {counter}");
+            _log.LogDebug("GenerateNext attempt {Attempt}", counter);
             try
             {
                 // Read operation - use read lock for accessing _cronDefinitions
                 if (!_stateLock.TryEnterReadLock(TimeSpan.FromSeconds(10)))
                 {
-                    _log.Error("Failed to acquire read lock for GenerateNext operation within timeout");
+                    _log.LogError(LogMessages.CronLockTimeout, LogMessages.CronLockTimeoutTemplate, "read", "GenerateNext");
                     break;
                 }
 
@@ -233,32 +233,30 @@ public class CronService : ICronService, IDisposable
             }
             catch (Exception e)
             {
-                _log.Error($"Problem with GenerateNext; Try:{counter}; Message: {e.Message}");
+                _log.LogError(LogMessages.CronGenerateNextError, LogMessages.CronGenerateNextErrorTemplate, counter, e.Message);
                 _log.Error(e.Message);
             }
         }
 
-        _log.Debug("GenerateNext; " +
-                   $"Marker: {marker}; " +
-                   $"Next time: {nextLocal}; " +
-                   $"Items to run on next: {_itemsToRunOnNextMinute.Count}");
+        _log.LogDebug(LogMessages.CronTasksScheduled, LogMessages.CronTasksScheduledTemplate, 
+            marker, nextLocal, _itemsToRunOnNextMinute.Count);
     }
 
     private void CreateListDefinitions(string[] cronFiles)
     {
         try
         {
-            _log.Debug($"CreateListDefinitions part 1; Files: {string.Join(" ", cronFiles)}");
+            _log.LogDebug("CreateListDefinitions starting for files: {CronFiles}", string.Join(", ", cronFiles));
             
             if (!_stateLock.TryEnterWriteLock(TimeSpan.FromSeconds(30)))
             {
-                _log.Error("Failed to acquire write lock for CreateListDefinitions operation within timeout");
+                _log.LogError(LogMessages.CronLockTimeout, LogMessages.CronLockTimeoutTemplate, "write", "CreateListDefinitions");
                 return;
             }
             
             try
             {
-                _log.Debug($"CreateListDefinitions part 2; Files: {string.Join(" ", cronFiles)}");
+                _log.LogDebug(LogMessages.CronDefinitionsLoaded, LogMessages.CronDefinitionsLoadedTemplate, string.Join(", ", cronFiles));
                 _cronDefinitions.Clear();
                 foreach (var crontabFile in cronFiles)
                 {
@@ -274,9 +272,7 @@ public class CronService : ICronService, IDisposable
         }
         catch (Exception e)
         {
-            _log.Error("CreateListDefinitions error");
-            _log.Error(e.Message);
-            _log.Error(e);
+            _log.LogError(e, "Error in CreateListDefinitions operation: {ErrorMessage}", e.Message);
         }
     }
 }
