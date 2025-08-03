@@ -1,0 +1,44 @@
+# Windows image file caches
+Thumbs.db
+ehthumbs.db
+
+obj
+bin
+*.user
+*.suo
+*.orig
+output
+publish-*
+packages
+_ReSharper.*
+_dotCover.*
+*.Resharper
+*.Cache
+*.cache
+~$*
+[Pp]ublish
+*.ide
+*nunit.TestResult.*.xml
+*.vsp
+
+# Visual Studio temp something
+src/.vs/
+.vs/
+# Visual Studio build objects
+bin/
+csx/
+obj/
+rcf/
+
+
+src/build/tools/*
+
+stuff/*
+.build
+.secrets/*
+dev/*
+.nuke/temp/*
+.claude/*
+
+
+

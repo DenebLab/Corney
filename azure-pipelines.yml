@@ -1,0 +1,93 @@
+
+trigger:
+ - production 
+#  - develop
+
+pool:
+  name: Default
+
+
+steps:
+- checkout: self  # self represents the repo where the initial Pipelines YAML file was found
+  clean: true
+  persistCredentials: true
+
+
+- script: | 
+    echo '$(System.DefaultWorkingDirectory)'
+    echo '$(Build.ArtifactStagingDirectory)'
+    echo '$(Agent.BuildDirectory)'
+    echo '$(Build.SourcesDirectory)'
+    echo '$(Build.BinariesDirectory)'
+    echo '$(Build.TriggeredBy.DefinitionName)'
+    echo '$(Build.Reason)'
+    echo '$(Build.SourceBranch)'
+    echo '$(Build.SourceBranchName)'
+    echo '$(Build.BuildId)'
+    echo '$(Build.BuildNumber)'
+    echo '$(Build.ArtifactStagingDirectory)'
+  displayName: 'Run a one-line script second'
+
+# Build number
+# https://www.andrewhoefling.com/Blog/Post/azure-pipelines-custom-build-numbers-in-yaml-templates
+# https://www.patriksvensson.se/2019/03/build-counters-in-azure-devops
+
+
+- script: |
+    git fetch origin '+refs/heads/*:refs/heads/*'
+    git checkout --quiet $(Build.SourceBranchName)
+    git reset --hard $(Build.SourceBranchName)
+    git pull
+    git branch
+  displayName: 'Set valid branch name: $(Build.SourceBranchName)'
+
+
+- task: PowerShell@2
+  env:
+    azureStorageConnectionStringKey1: $(azureStorageConnectionStringKey1)
+
+  inputs:
+    targetType: 'filePath' # Optional. Options: filePath, inline
+    filePath: 'build.ps1'
+    arguments: --BuildCounter $(Build.BuildId)
+    failOnStderr: true
+    workingDirectory: $(Build.SourcesDirectory)
+
+# Set tag to repository
+# https://stackoverflow.com/questions/56541458/azure-pipeline-doest-allow-to-git-push-throwing-genericcontribute-permission?noredirect=1&lq=1
+# TLDR: In Project settings - "Settings / Repositories / {Reposytory}" - Security ; Add user  "Project Collection Build Service ({organization-name}) and set "Contribute" to "Allow"  
+
+- powershell: |
+    Write-Host "git tag $env:tag"
+    git -c http.extraheader="AUTHORIZATION: bearer $env:SYSTEM_ACCESSTOKEN" tag $env:tag
+    Write-Host "git push origin $env:tag"
+    git -c http.extraheader="AUTHORIZATION: bearer $env:SYSTEM_ACCESSTOKEN" push origin $env:tag
+  displayName: 'Set tag to repository: v$(Build.BuildNumber)'
+  workingDirectory: $(Build.SourcesDirectory)
+  env:
+    tag: 'v$(Build.BuildNumber)'
+    SYSTEM_ACCESSTOKEN: $(system.accesstoken)
+  ignoreLASTEXITCODE: false
+  errorActionPreference: Stop
+  failOnStderr: false
+
+
+
+# - task: PublishBuildArtifacts@1
+#   inputs: 
+#     pathtoPublish: $(Build.ArtifactStagingDirectory)
+#     artifactName: MyBuildOutputs
+
+
+# IMPORTANT 
+# Install AzurePS https://docs.microsoft.com/en-us/powershell/azure/install-az-ps
+
+# - task: AzureFileCopy@3
+#   inputs:
+#     sourcePath: $(Build.ArtifactStagingDirectory)
+#     azureSubscription: 'antipiracy-eu-west-free-2' # 
+#     destination: azureBlob
+#     storage: 'antipiracytest'
+#     containerName: 'antipiracycontainer'
+
+
