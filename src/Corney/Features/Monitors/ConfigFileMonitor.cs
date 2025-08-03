@@ -16,7 +16,7 @@ namespace Corney.Features.Monitors;
 
 public class ConfigFileMonitorService : IDisposable
 {
-    private readonly List<IDisposable> _cfd = new();
+    private readonly List<IDisposable> _cfd = [];
 
     private readonly Channel<FileSystemEventArgs> _channel = Channel.CreateUnbounded<FileSystemEventArgs>();
 

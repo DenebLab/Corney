@@ -1,5 +1,8 @@
-﻿using Corney.Features.App;
-
+﻿using Corney.Core.Features.Cron.Service;
+using Corney.Features.App;
+using Corney.Features.Cron;
+using Corney.Features.Monitors;
+using Corney.Features.Processes;
 using Deneblab.Common.Host;
 using Deneblab.Common.Logging;
 using MediatR;
@@ -13,9 +16,6 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using Corney.Core.Features.Cron.Service;
-using Corney.Features.Monitors;
-using Corney.Features.Processes;
 using ZLogger.Providers;
 
 namespace Corney;
@@ -46,18 +46,19 @@ internal static class App
     /// </summary>
     [STAThread]
     [SupportedOSPlatform("windows6.1")]
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         const string mutexName = "Global\\Corney_SingleInstance";
         using var mutex = new Mutex(true, mutexName, out var createdNew);
         if (!createdNew) return;
+        
         CorneyRegistry registry = null;
         try
         {
             var ab = new AppBuilder(_appEnv, _dLabApp.GetLoggerFactory());
-            var config = ab.CreateConfig(_appEnv);
+            var config = await ab.CreateConfigAsync(_appEnv);
             registry = ab.GetRegistry(_appEnv, config);
-            MainAsyncNew(args, registry).GetAwaiter().GetResult();
+            await MainAsyncNew(args, registry);
         }
         catch (Exception e)
         {
@@ -70,11 +71,9 @@ internal static class App
                 new JsonSerializerOptions { WriteIndented = true })}");
             //  MessageBox.Show(e.Message, "Critical ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
-        finally
-        {
-            mutex.ReleaseMutex();
-            // Cef.Shutdown();
-        }
+        
+        // Release mutex on the same thread that acquired it
+        // Using statement will call Dispose() which handles proper cleanup
     }
 
     [SupportedOSPlatform("windows6.1")]
@@ -90,6 +89,7 @@ internal static class App
                 services.AddHostedService<MinuteBackgroundService>();
                 services.AddSingleton<ConfigFileMonitorService>();
                 services.AddSingleton<FileWatchHelpers>();
+                services.AddSingleton<CrontabFileParser>();
 
 
                 services.AddMediatR(cfg => { cfg.RegisterServicesFromAssembly(typeof(App).Assembly); });

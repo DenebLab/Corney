@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Corney.Common.Io;
 
@@ -47,6 +48,29 @@ public static class Misc
                     throw;
 
                 Thread.Sleep(delayOnRetry);
+            }
+
+        return result;
+    }
+
+    public static async Task<string> ReadFileWithRetryAsync(string path, int numberOfRetries = 6, int delayOnRetry = 500)
+    {
+        var result = string.Empty;
+        for (var i = 1; i <= numberOfRetries; ++i)
+            try
+            {
+                result = await File.ReadAllTextAsync(path);
+                break; // When done we can break loop
+            }
+            catch (IOException)
+            {
+               
+                // You may check error code to filter some exceptions, not every error
+                // can be recovered.
+                if (i == numberOfRetries) // Last one, (re)throw exception and exit
+                    throw;
+
+                await Task.Delay(delayOnRetry);
             }
 
         return result;
@@ -126,6 +150,17 @@ public static class Misc
         File.WriteAllText(path, json, _noBom);
     }
 
+    public static async Task WriteJsonAsync(string path, object obj)
+    {
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        };
+        var json = JsonSerializer.Serialize(obj, options);
+        await File.WriteAllTextAsync(path, json, _noBom);
+    }
+
     public static T ReadJson<T>(string path)
     {
         var options = new JsonSerializerOptions
@@ -135,6 +170,18 @@ public static class Misc
             ReadCommentHandling = JsonCommentHandling.Skip
         };
         var json = File.ReadAllText(path);
+        return JsonSerializer.Deserialize<T>(json, options);
+    }
+
+    public static async Task<T> ReadJsonAsync<T>(string path)
+    {
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            ReadCommentHandling = JsonCommentHandling.Skip
+        };
+        var json = await File.ReadAllTextAsync(path);
         return JsonSerializer.Deserialize<T>(json, options);
     }
 }

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Corney.Common.Extensions;
 using Corney.Features.App;
@@ -15,10 +16,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Corney.Core.Features.Cron.Service;
 
-public class CronService : ICronService
+public class CronService : ICronService, IDisposable
 {
-    private readonly object _balanceLock = new();
-    private readonly object _balanceLock2 = new();
+    private readonly ReaderWriterLockSlim _stateLock = new();
     private readonly CorneyRegistry _corneyRegistry;
 
     private readonly Dictionary<string, List<CronDefinition>> _cronDefinitions = new(StringComparer.OrdinalIgnoreCase);
@@ -57,6 +57,13 @@ public class CronService : ICronService
     {
         _log.Info("Stop CronService");
         _nextSchedule?.Dispose();
+    }
+
+    public void Dispose()
+    {
+        _log.Debug("Disposing CronService");
+        _nextSchedule?.Dispose();
+        _stateLock?.Dispose();
     }
 
     private void InitWork(string[] cronFiles)
@@ -120,7 +127,14 @@ public class CronService : ICronService
     {
         _log.Debug(
             $"Execute; Marker: {marker}; Time: {date.ToLocalTime()}; The number items to run: {_itemsToRunOnNextMinute.Count}");
-        lock (_balanceLock)
+        
+        if (!_stateLock.TryEnterWriteLock(TimeSpan.FromSeconds(30)))
+        {
+            _log.Error("Failed to acquire write lock for Execute operation within timeout");
+            return;
+        }
+        
+        try
         {
             if (_itemsToRunOnNextMinute.Any())
             {
@@ -141,6 +155,10 @@ public class CronService : ICronService
             _log.Debug($"Old marker: {marker}; Next marker: {nextMarker}");
             GenerateNext(next, nextMarker);
             ScheduleNext(next, nextMarker);
+        }
+        finally
+        {
+            _stateLock.ExitWriteLock();
         }
     }
 
@@ -181,18 +199,34 @@ public class CronService : ICronService
             _log.Debug($"GenerateNext; Try: {counter}");
             try
             {
-                var list = _cronDefinitions
-                    .SelectMany(x => x.Value)
-                    .Where(x =>
-                    {
-                        // ReSharper disable once CommentTypo
-                        // Read more: https://github.com/HangfireIO/Cronos#working-with-time-zones
-                        var n1 = x.Expression.GetNextOccurrence(DateTimeOffset.Now, TimeZoneInfo.Local);
-                        var nextLocalTime = n1?.DateTime;
-                        return nextLocalTime == nextLocal;
-                    })
-                    .Distinct()
-                    .ToList();
+                // Read operation - use read lock for accessing _cronDefinitions
+                if (!_stateLock.TryEnterReadLock(TimeSpan.FromSeconds(10)))
+                {
+                    _log.Error("Failed to acquire read lock for GenerateNext operation within timeout");
+                    break;
+                }
+
+                List<CronDefinition> list;
+                try
+                {
+                    list = _cronDefinitions
+                        .SelectMany(x => x.Value)
+                        .Where(x =>
+                        {
+                            // ReSharper disable once CommentTypo
+                            // Read more: https://github.com/HangfireIO/Cronos#working-with-time-zones
+                            var n1 = x.Expression.GetNextOccurrence(DateTimeOffset.Now, TimeZoneInfo.Local);
+                            var nextLocalTime = n1?.DateTime;
+                            return nextLocalTime == nextLocal;
+                        })
+                        .Distinct()
+                        .ToList();
+                }
+                finally
+                {
+                    _stateLock.ExitReadLock();
+                }
+
                 _itemsToRunOnNextMinute.Clear();
                 _itemsToRunOnNextMinute.AddRange(list);
                 break;
@@ -215,7 +249,14 @@ public class CronService : ICronService
         try
         {
             _log.Debug($"CreateListDefinitions part 1; Files: {string.Join(" ", cronFiles)}");
-            lock (_balanceLock2)
+            
+            if (!_stateLock.TryEnterWriteLock(TimeSpan.FromSeconds(30)))
+            {
+                _log.Error("Failed to acquire write lock for CreateListDefinitions operation within timeout");
+                return;
+            }
+            
+            try
             {
                 _log.Debug($"CreateListDefinitions part 2; Files: {string.Join(" ", cronFiles)}");
                 _cronDefinitions.Clear();
@@ -225,6 +266,10 @@ public class CronService : ICronService
                     var list = crontabFileParser.Read(crontabFile);
                     _cronDefinitions.Add(crontabFile, list);
                 }
+            }
+            finally
+            {
+                _stateLock.ExitWriteLock();
             }
         }
         catch (Exception e)

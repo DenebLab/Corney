@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Threading.Tasks;
 using Corney.Common.Io;
 using Deneblab.Common.Host;
 using Deneblab.Common.Logging;
@@ -31,6 +32,24 @@ public class AppBuilder
             _log.Trace($"Creating new config file at {configPath}");
             var config = new CorneyConfig();
             Misc.WriteJson(configPath, config);
+            return config;
+        }
+    }
+
+    public async Task<CorneyConfig> CreateConfigAsync(AppEnv env)
+    {
+        var configPath = ConfigPath(env);
+        if (File.Exists(configPath))
+        {
+            _log.Trace($"Using existing config file at {configPath}");
+            var config = await Misc.ReadJsonAsync<CorneyConfig>(configPath);
+            return config;
+        }
+        else
+        {
+            _log.Trace($"Creating new config file at {configPath}");
+            var config = new CorneyConfig();
+            await Misc.WriteJsonAsync(configPath, config);
             return config;
         }
     }
