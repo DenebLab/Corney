@@ -1,17 +1,16 @@
-using Corney.Common.Logging;
-using Corney.Common.Resilience;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Corney.Common.Resilience;
+using Microsoft.Extensions.Logging;
 
 namespace Corney.Common.Health;
 
 /// <summary>
-/// Health check status
+///     Health check status
 /// </summary>
 public enum HealthStatus
 {
@@ -21,7 +20,7 @@ public enum HealthStatus
 }
 
 /// <summary>
-/// Health check result
+///     Health check result
 /// </summary>
 public class HealthCheckResult
 {
@@ -57,7 +56,8 @@ public class HealthCheckResult
         };
     }
 
-    public static HealthCheckResult Unhealthy(string componentName, string description, Exception exception = null, TimeSpan? duration = null)
+    public static HealthCheckResult Unhealthy(string componentName, string description, Exception exception = null,
+        TimeSpan? duration = null)
     {
         return new HealthCheckResult
         {
@@ -72,7 +72,7 @@ public class HealthCheckResult
 }
 
 /// <summary>
-/// Health check interface
+///     Health check interface
 /// </summary>
 public interface IHealthCheck
 {
@@ -81,12 +81,10 @@ public interface IHealthCheck
 }
 
 /// <summary>
-/// File system health check
+///     File system health check
 /// </summary>
 public class FileSystemHealthCheck : IHealthCheck
 {
-    public string Name => "FileSystem";
-    
     private readonly string[] _criticalPaths;
     private readonly ILogger<FileSystemHealthCheck> _logger;
 
@@ -96,10 +94,12 @@ public class FileSystemHealthCheck : IHealthCheck
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    public string Name => "FileSystem";
+
     public async Task<HealthCheckResult> CheckHealthAsync(CancellationToken cancellationToken = default)
     {
         var startTime = DateTime.UtcNow;
-        
+
         try
         {
             var missingPaths = new List<string>();
@@ -108,7 +108,7 @@ public class FileSystemHealthCheck : IHealthCheck
             foreach (var path in _criticalPaths)
             {
                 await Task.Yield(); // Make this actually async
-                
+
                 if (!File.Exists(path) && !Directory.Exists(path))
                 {
                     missingPaths.Add(path);
@@ -143,7 +143,6 @@ public class FileSystemHealthCheck : IHealthCheck
             };
 
             if (missingPaths.Any())
-            {
                 return new HealthCheckResult
                 {
                     ComponentName = Name,
@@ -153,10 +152,8 @@ public class FileSystemHealthCheck : IHealthCheck
                     CheckTime = DateTime.UtcNow,
                     Data = data
                 };
-            }
 
             if (inaccessiblePaths.Any())
-            {
                 return new HealthCheckResult
                 {
                     ComponentName = Name,
@@ -166,7 +163,6 @@ public class FileSystemHealthCheck : IHealthCheck
                     CheckTime = DateTime.UtcNow,
                     Data = data
                 };
-            }
 
             return new HealthCheckResult
             {
@@ -182,20 +178,18 @@ public class FileSystemHealthCheck : IHealthCheck
         {
             var duration = DateTime.UtcNow - startTime;
             _logger.LogError(ex, "FileSystem health check failed");
-            
-            return HealthCheckResult.Unhealthy(Name, 
+
+            return HealthCheckResult.Unhealthy(Name,
                 "FileSystem health check encountered an error", ex, duration);
         }
     }
 }
 
 /// <summary>
-/// Circuit breaker health check
+///     Circuit breaker health check
 /// </summary>
 public class CircuitBreakerHealthCheck : IHealthCheck
 {
-    public string Name => "CircuitBreaker";
-    
     private readonly CircuitBreaker _circuitBreaker;
     private readonly ILogger<CircuitBreakerHealthCheck> _logger;
 
@@ -205,17 +199,19 @@ public class CircuitBreakerHealthCheck : IHealthCheck
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    public string Name => "CircuitBreaker";
+
     public async Task<HealthCheckResult> CheckHealthAsync(CancellationToken cancellationToken = default)
     {
         await Task.Yield(); // Make this actually async
-        
+
         var startTime = DateTime.UtcNow;
-        
+
         try
         {
             var status = _circuitBreaker.GetStatus();
             var duration = DateTime.UtcNow - startTime;
-            
+
             var data = new Dictionary<string, object>
             {
                 ["State"] = status.State.ToString(),
@@ -260,15 +256,15 @@ public class CircuitBreakerHealthCheck : IHealthCheck
         {
             var duration = DateTime.UtcNow - startTime;
             _logger.LogError(ex, "CircuitBreaker health check failed");
-            
-            return HealthCheckResult.Unhealthy(Name, 
+
+            return HealthCheckResult.Unhealthy(Name,
                 "CircuitBreaker health check encountered an error", ex, duration);
         }
     }
 }
 
 /// <summary>
-/// Health check service to coordinate all health checks
+///     Health check service to coordinate all health checks
 /// </summary>
 public class HealthCheckService
 {
@@ -283,7 +279,7 @@ public class HealthCheckService
     public void RegisterHealthCheck(IHealthCheck healthCheck)
     {
         if (healthCheck == null) throw new ArgumentNullException(nameof(healthCheck));
-        
+
         _healthChecks.Add(healthCheck);
         _logger.LogDebug("Registered health check: {HealthCheckName}", healthCheck.Name);
     }
@@ -299,29 +295,23 @@ public class HealthCheckService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Health check {HealthCheckName} failed", healthCheck.Name);
-                return HealthCheckResult.Unhealthy(healthCheck.Name, 
+                return HealthCheckResult.Unhealthy(healthCheck.Name,
                     $"Health check failed with exception: {ex.Message}", ex);
             }
         });
 
         var results = await Task.WhenAll(tasks);
-        
+
         var unhealthyCount = results.Count(r => r.Status == HealthStatus.Unhealthy);
         var degradedCount = results.Count(r => r.Status == HealthStatus.Degraded);
-        
+
         if (unhealthyCount > 0)
-        {
-            _logger.LogWarning("Health check completed: {UnhealthyCount} unhealthy, {DegradedCount} degraded", 
+            _logger.LogWarning("Health check completed: {UnhealthyCount} unhealthy, {DegradedCount} degraded",
                 unhealthyCount, degradedCount);
-        }
         else if (degradedCount > 0)
-        {
             _logger.LogInformation("Health check completed: {DegradedCount} degraded components", degradedCount);
-        }
         else
-        {
             _logger.LogDebug("Health check completed: All components healthy");
-        }
 
         return results;
     }
@@ -329,13 +319,13 @@ public class HealthCheckService
     public async Task<HealthStatus> GetOverallHealthAsync(CancellationToken cancellationToken = default)
     {
         var results = await CheckAllAsync(cancellationToken);
-        
+
         if (results.Any(r => r.Status == HealthStatus.Unhealthy))
             return HealthStatus.Unhealthy;
-            
+
         if (results.Any(r => r.Status == HealthStatus.Degraded))
             return HealthStatus.Degraded;
-            
+
         return HealthStatus.Healthy;
     }
 }

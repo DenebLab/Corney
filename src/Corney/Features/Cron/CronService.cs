@@ -100,7 +100,6 @@ public class CronService : ICronService, IDisposable
     {
         var marker = Guid.NewGuid();
         CreateListDefinitions(cronFiles);
-        //LogNextItemToRun();
         var start = DateTime.UtcNow;
         var startDown = start.RoundDown(TimeSpan.FromSeconds(60));
         var next = startDown.AddMinutes(1);
@@ -208,7 +207,6 @@ public class CronService : ICronService, IDisposable
                 });
 
                 _itemsToRunOnNextMinute.Clear();
-                //LogNextItemToRun();
             }
 
             var next = date.AddMinutes(1);

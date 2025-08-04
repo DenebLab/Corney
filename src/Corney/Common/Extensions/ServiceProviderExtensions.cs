@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using Microsoft.Extensions.DependencyInjection;
+// ReSharper disable CheckNamespace
 
 namespace Microsoft.Extensions.DependencyInjection;
 
