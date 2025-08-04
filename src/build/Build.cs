@@ -250,6 +250,40 @@ class Build : NukeBuild
         });
 
 
+    Target PublishSingleFile => _ => _
+        .DependsOn(Information,Clean)
+        .Executes(() =>
+        {
+            var p = CorneyWinProject;
+            if (p == null) return;
+
+            Log.Information($"Build Single-File; Project file: {p.Name}; Version: {AbcVersion.SemVersion}");
+            var singleFileOutDir = RootDirectory / "dev" / "app.standalone";
+            singleFileOutDir.CreateOrCleanDirectory();
+
+            // Restore with runtime identifier
+            DotNetRestore(s => s
+                .SetProjectFile(p.Path)
+                .SetRuntime("win-x64")
+            );
+
+            DotNetPublish(o => o
+                .SetProject(p.Path)
+                .EnableNoRestore()
+                .SetConfiguration(Configuration)
+                .SetOutput(singleFileOutDir)
+                .SetVersion(AbcVersion.SemVersion)
+                .SetFileVersion(AbcVersion.SemVersion)
+                .SetAssemblyVersion(AbcVersion.SemVersion)
+                .SetInformationalVersion(AbcVersion.InformationalVersion)
+                .EnablePublishSingleFile()
+                .SetSelfContained(false)
+                .SetRuntime("win-x64")
+            );
+
+            Log.Information($"Single-file executable created: {singleFileOutDir / "Corney.exe"}");
+        });
+
     Target PublishLocal => _ => _
         .DependsOn(Information, Publish);
 
