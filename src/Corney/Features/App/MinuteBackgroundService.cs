@@ -1,29 +1,13 @@
-﻿using Corney.Common.Logging;
+﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Corney.Common.Logging;
+using Deneblab.Common.Logging;
 using MediatR;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-using Deneblab.Common.Logging;
 
 namespace Corney.Features.App;
-
-public class MinuteExecutionHandler : INotificationHandler<MinuteExecutionNotification>
-{
-    private readonly ILogger<MinuteExecutionHandler> _log;
-
-    public MinuteExecutionHandler(ILogger<MinuteExecutionHandler> log)
-    {
-        _log = log;
-    }
-
-    public Task Handle(MinuteExecutionNotification notification, CancellationToken cancellationToken)
-    {
-        _log.LogInformation(LogMessages.MinuteExecutionCompleted, LogMessages.MinuteExecutionCompletedTemplate, notification.ExecutionTime);
-        return Task.CompletedTask;
-    }
-}
 
 public class MinuteBackgroundService : BackgroundService
 {
@@ -41,14 +25,14 @@ public class MinuteBackgroundService : BackgroundService
         _log.Info("MinuteBackgroundService starting");
 
         while (!stoppingToken.IsCancellationRequested)
-        {
             try
             {
                 var now = DateTime.Now;
                 var nextMinute = now.AddSeconds(-now.Second).AddMilliseconds(-now.Millisecond).AddMinutes(1);
                 var delay = nextMinute - now;
 
-                _log.LogDebug(LogMessages.NextExecutionScheduled, LogMessages.NextExecutionScheduledTemplate, delay.TotalSeconds);
+                _log.LogDebug(LogMessages.NextExecutionScheduled, LogMessages.NextExecutionScheduledTemplate,
+                    delay.TotalSeconds);
 
                 try
                 {
@@ -60,10 +44,7 @@ public class MinuteBackgroundService : BackgroundService
                     return;
                 }
 
-                if (!stoppingToken.IsCancellationRequested)
-                {
-                    await ExecuteMainTask();
-                }
+                if (!stoppingToken.IsCancellationRequested) await ExecuteMainTask();
             }
             catch (OperationCanceledException)
             {
@@ -89,7 +70,6 @@ public class MinuteBackgroundService : BackgroundService
                     return;
                 }
             }
-        }
 
         _log.Info("MinuteBackgroundService stopped");
     }

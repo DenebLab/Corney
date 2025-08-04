@@ -4,10 +4,7 @@ using MediatR;
 namespace Corney.Features.App;
 
 public record MinuteExecutionNotification(DateTime ExecutionTime) : INotification;
-
 public record AppStartingEvent : INotification;
-public record AppStartedEvent : INotification;
-
 public class StartCorneyReq : INotification
 {
     public string[] CrontabFiles { get; }
@@ -18,7 +15,3 @@ public class StartCorneyReq : INotification
     }
 }
 
-public class StopCorneyReq : INotification
-{
-
-}

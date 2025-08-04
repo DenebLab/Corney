@@ -12,10 +12,7 @@ public class AppHandlers : INotificationHandler<AppStartingEvent>
     private readonly ConfigFileMonitorService _configFileMonitorService;
     private readonly ILogger<AppHandlers> _log;
     private readonly CorneyRegistry _registry;
-
-    // SiteScraperRegistry
-
-
+    
     public AppHandlers(ILogger<AppHandlers> log, CorneyRegistry registry,
         ConfigFileMonitorService configFileMonitorService)
     {

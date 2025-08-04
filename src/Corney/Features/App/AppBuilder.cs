@@ -18,6 +18,7 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using ZLogger;
 using ZLogger.Providers;
 
 namespace Corney.Features.App;
@@ -44,7 +45,6 @@ public class AppBuilder
         }
         catch (Exception e)
         {
-            _log.Critical(e.Message);
             _log.Critical(e);
             _log.Critical(e.StackTrace);
             _log.Critical($"Env: {JsonSerializer.Serialize(_env,
@@ -62,9 +62,8 @@ public class AppBuilder
         }
         catch (Exception e)
         {
-            log.Critical(e.Message);
             log.Critical(e);
-            log.Critical(e?.StackTrace);
+            log.Critical(e.StackTrace);
             log.Critical($"Env: {JsonSerializer.Serialize(_env,
                 new JsonSerializerOptions { WriteIndented = true })}");
         }
@@ -83,6 +82,7 @@ public class AppBuilder
                 services.AddSingleton<ConfigFileMonitorService>();
                 services.AddSingleton<FileWatchHelpers>();
                 services.AddSingleton<CrontabFileParser>();
+                services.AddSingleton<CorneyContext>();
 
                 // Add performance monitoring services
                 services.AddPerformanceMonitoring(options =>
@@ -140,6 +140,7 @@ public class AppBuilder
         {
             _log.Trace($"Creating new config file at {configPath}");
             config = new CorneyConfig();
+            if (Directory.Exists(env.ConfigDir) == false) Directory.CreateDirectory(env.ConfigDir);
             await Misc.WriteJsonAsync(configPath, config);
         }
 
@@ -167,42 +168,18 @@ public class AppBuilder
     {
         log.LogInformation(LogMessages.ApplicationStarted, LogMessages.ApplicationStartedTemplate,
             registry.AppEnv.AppVersion.FullName);
-        log.LogInformation($"Mode: {registry.AppEnv.AppMode}; " +
-                           $"Root: {registry.AppEnv.RootDir};");
-
-        // Run development-time validation if in development environment
-        if (registry.AppEnv.IsDev)
-            try
-            {
-                var validator = host.Services.GetRequiredService<DevelopmentValidator>();
-
-                // Create a temporary config object for validation
-                var tempConfig = new CorneyConfig
-                {
-                    CrontabFiles = registry.CrontabFiles,
-                    CheckIntervalSeconds = 60, // Default values
-                    FileMonitoringDebounceSeconds = 5
-                };
-
-                var validationPassed = validator.ValidateDevelopmentEnvironment(registry.ConfigFilePath, tempConfig);
-
-                if (!validationPassed)
-                    log.LogWarning("Development environment validation failed. Check logs for details.");
-            }
-            catch (Exception ex)
-            {
-                log.LogWarning(ex, "Development validation could not be completed");
-            }
+        log.ZLogInformation($"Mode: {registry.AppEnv.AppMode}; " +
+                            $"Root: {registry.AppEnv.RootDir};");
 
         var mediator = host.Services.GetRequiredService<IMediator>();
-        await mediator.Publish(new AppStartingEvent());
-        await mediator.Publish(new AppStartedEvent());
-        await mediator.Publish(new StartCorneyReq(registry.CrontabFiles));
 
+        await mediator.Publish(new AppStartingEvent());
+        await mediator.Publish(new StartCorneyReq(registry.CrontabFiles));
 
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
-        Application.Run(new CorneyContext(registry, mediator));
+        var form = host.Services.GetRequiredService<CorneyContext>();
+        Application.Run(form);
     }
 
 
