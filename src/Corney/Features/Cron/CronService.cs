@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Corney.Common.Extensions;
 using Corney.Common.Logging;
+using Corney.Common.Performance;
 using Corney.Features.App;
 using Corney.Features.Cron;
 using Corney.Features.Processes;
@@ -28,13 +29,15 @@ public class CronService : ICronService, IDisposable
 
     private readonly ILogger<CronService> _log;
     private readonly IServiceProvider _serviceProvider;
+    private readonly PerformanceMonitor _performanceMonitor;
     private IDisposable _nextSchedule;
 
-    public CronService(ILogger<CronService> log, IServiceProvider serviceProvider, CorneyRegistry corneyRegistry)
+    public CronService(ILogger<CronService> log, IServiceProvider serviceProvider, CorneyRegistry corneyRegistry, PerformanceMonitor performanceMonitor)
     {
         _log = log;
         _serviceProvider = serviceProvider;
         _corneyRegistry = corneyRegistry;
+        _performanceMonitor = performanceMonitor;
     }
 
     public void Start(string[] crontabFiles)
@@ -125,12 +128,15 @@ public class CronService : ICronService, IDisposable
 
     private void Execute(DateTime date, Guid marker)
     {
+        using var executionTimer = _performanceMonitor.StartTiming($"{MetricCategories.CronExecution}.batch");
+        
         _log.LogDebug(LogMessages.CronExecutionStarted, LogMessages.CronExecutionStartedTemplate, 
             marker, date.ToLocalTime(), _itemsToRunOnNextMinute.Count);
         
         if (!_stateLock.TryEnterWriteLock(TimeSpan.FromSeconds(30)))
         {
             _log.LogError(LogMessages.CronLockTimeout, LogMessages.CronLockTimeoutTemplate, "write", "Execute");
+            executionTimer.MarkFailure();
             return;
         }
         
@@ -138,12 +144,42 @@ public class CronService : ICronService, IDisposable
         {
             if (_itemsToRunOnNextMinute.Any())
             {
+                var executedJobs = 0;
+                var failedJobs = 0;
+                
                 foreach (var cronDefinition in _itemsToRunOnNextMinute)
                 {
-                    var processWrapper = _serviceProvider.GetRequiredService<ProcessWrapper>();
-                    var t1 = Pharse.Tokenize2(cronDefinition.ExecutePart);
-                    processWrapper.Start(t1);
+                    try
+                    {
+                        using var jobTimer = _performanceMonitor.StartTiming($"{MetricCategories.CronExecution}.job");
+                        
+                        var processWrapper = _serviceProvider.GetRequiredService<ProcessWrapper>();
+                        var t1 = Pharse.Tokenize2(cronDefinition.ExecutePart);
+                        processWrapper.Start(t1);
+                        
+                        executedJobs++;
+                        jobTimer.MarkSuccess();
+                    }
+                    catch (Exception ex)
+                    {
+                        _log.LogError(ex, "Failed to execute cron job: {ExecutePart}", cronDefinition.ExecutePart);
+                        failedJobs++;
+                    }
                 }
+
+                // Record batch execution metrics
+                _performanceMonitor.RecordMetric(new PerformanceMetrics
+                {
+                    OperationName = $"{MetricCategories.CronExecution}.batch_jobs",
+                    Duration = TimeSpan.Zero, // Will be set by timer
+                    Success = failedJobs == 0,
+                    AdditionalData = new()
+                    {
+                        ["ExecutedJobs"] = executedJobs,
+                        ["FailedJobs"] = failedJobs,
+                        ["TotalJobs"] = _itemsToRunOnNextMinute.Count
+                    }
+                });
 
                 _itemsToRunOnNextMinute.Clear();
                 //LogNextItemToRun();
@@ -155,6 +191,8 @@ public class CronService : ICronService, IDisposable
             _log.LogDebug(LogMessages.CronExecutionCompleted, LogMessages.CronExecutionCompletedTemplate, marker, nextMarker);
             GenerateNext(next, nextMarker);
             ScheduleNext(next, nextMarker);
+            
+            executionTimer.MarkSuccess();
         }
         finally
         {

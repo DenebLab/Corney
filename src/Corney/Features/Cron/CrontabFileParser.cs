@@ -1,13 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
-using Corney.Common.Logging;
+using Corney.Common.Performance;
+using Corney.Common.Resilience;
 using Cronos;
 using Deneblab.Common.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Corney.Features.Cron;
@@ -16,13 +16,32 @@ public class CrontabFileParser
 {
     private static readonly char[] _delimiterChars = { ' ', '\t' };
     private readonly ILogger<CrontabFileParser> _log;
+    private readonly ResilientFileReader _resilientFileReader;
+    private readonly PerformanceMonitor _performanceMonitor;
 
-    public CrontabFileParser(ILogger<CrontabFileParser> log)
+    public CrontabFileParser(ILogger<CrontabFileParser> log, IServiceProvider serviceProvider)
     {
         _log = log;
+        // Create resilient file reader with aggressive retry for critical crontab files
+        var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
+        var resilientLogger = loggerFactory.CreateLogger<ResilientFileReader>();
+        _resilientFileReader = ResilientFileReaderFactory.CreateAggressive(resilientLogger);
+        
+        // Get performance monitor if available
+        serviceProvider.TryGetService(out _performanceMonitor);
     }
 
     public List<CronDefinition> Read(string crontabFile)
+    {
+        if (_performanceMonitor != null)
+        {
+            return _performanceMonitor.RecordExecution($"{MetricCategories.FileRead}.crontab", () => ReadInternal(crontabFile));
+        }
+        
+        return ReadInternal(crontabFile);
+    }
+
+    private List<CronDefinition> ReadInternal(string crontabFile)
     {
         var l = new List<CronDefinition>();
         var s = Strings(crontabFile);
@@ -65,6 +84,16 @@ public class CrontabFileParser
 
     public async Task<List<CronDefinition>> ReadAsync(string crontabFile)
     {
+        if (_performanceMonitor != null)
+        {
+            return await _performanceMonitor.RecordExecutionAsync($"{MetricCategories.FileRead}.crontab_async", () => ReadAsyncInternal(crontabFile));
+        }
+        
+        return await ReadAsyncInternal(crontabFile);
+    }
+
+    private async Task<List<CronDefinition>> ReadAsyncInternal(string crontabFile)
+    {
         var l = new List<CronDefinition>();
         var s = await StringsAsync(crontabFile);
 
@@ -106,46 +135,38 @@ public class CrontabFileParser
 
     private string[] Strings(string crontabFile)
     {
-        var counter = 0;
-        const int max = 10;
-        while (counter <= max)
+        try
         {
-            counter++;
-            try
-            {
-                return File.ReadAllLines(crontabFile);
-            }
-            catch (Exception)
-            {
-                _log.LogWarning(LogMessages.FileReadRetry, LogMessages.FileReadRetryTemplate, counter, max, crontabFile);
-            }
-
-            Thread.Sleep(300);
+            return _resilientFileReader.ReadAllLines(crontabFile);
         }
-
-        return new string[] { };
+        catch (RetryExhaustedException ex)
+        {
+            _log.LogError(ex, "Failed to read crontab file {FilePath} after all retry attempts", crontabFile);
+            return new string[] { };
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Unexpected error reading crontab file {FilePath}", crontabFile);
+            return new string[] { };
+        }
     }
 
     private async Task<string[]> StringsAsync(string crontabFile)
     {
-        var counter = 0;
-        const int max = 10;
-        while (counter <= max)
+        try
         {
-            counter++;
-            try
-            {
-                return await File.ReadAllLinesAsync(crontabFile);
-            }
-            catch (Exception)
-            {
-                _log.LogWarning(LogMessages.FileReadRetry, LogMessages.FileReadRetryTemplate, counter, max, crontabFile);
-            }
-
-            await Task.Delay(300);
+            return await _resilientFileReader.ReadAllLinesAsync(crontabFile);
         }
-
-        return new string[] { };
+        catch (RetryExhaustedException ex)
+        {
+            _log.LogError(ex, "Failed to read crontab file {FilePath} after all retry attempts", crontabFile);
+            return new string[] { };
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Unexpected error reading crontab file {FilePath}", crontabFile);
+            return new string[] { };
+        }
     }
 
     private void WriteToLog(string definition, CronDefinition cronDefinition)

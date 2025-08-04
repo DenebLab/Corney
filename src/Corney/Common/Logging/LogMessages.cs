@@ -34,6 +34,17 @@ public static class LogMessages
     public static readonly EventId MinuteExecutionCompleted = new(4010, nameof(MinuteExecutionCompleted));
     public static readonly EventId NextExecutionScheduled = new(4020, nameof(NextExecutionScheduled));
 
+    // Error Recovery Event IDs (5000-5999)
+    public static readonly EventId RetryPolicyExecuting = new(5001, nameof(RetryPolicyExecuting));
+    public static readonly EventId RetryPolicySuccess = new(5002, nameof(RetryPolicySuccess));
+    public static readonly EventId RetryPolicyFailed = new(5003, nameof(RetryPolicyFailed));
+    public static readonly EventId RetryPolicyExhausted = new(5004, nameof(RetryPolicyExhausted));
+    public static readonly EventId CircuitBreakerOpen = new(5010, nameof(CircuitBreakerOpen));
+    public static readonly EventId CircuitBreakerHalfOpen = new(5011, nameof(CircuitBreakerHalfOpen));
+    public static readonly EventId CircuitBreakerClosed = new(5012, nameof(CircuitBreakerClosed));
+    public static readonly EventId FallbackExecuted = new(5020, nameof(FallbackExecuted));
+    public static readonly EventId HealthCheckFailed = new(5030, nameof(HealthCheckFailed));
+
     // CronService message templates
     public const string CronServiceStartedTemplate = "CronService started with version {AppVersion}";
     public const string CronServiceRestartedTemplate = "CronService restarted with version {AppVersion}";
@@ -63,4 +74,26 @@ public static class LogMessages
     public const string ApplicationStartedTemplate = "Application started: {ApplicationVersion}";
     public const string MinuteExecutionCompletedTemplate = "Minute execution completed at {ExecutionTime}";
     public const string NextExecutionScheduledTemplate = "Next execution scheduled in {DelaySeconds}s";
+
+    // Error recovery message templates
+    public const string RetryPolicyExecutingTemplate = "Executing {OperationName} with retry policy, attempt {Attempt}/{MaxAttempts}";
+    public const string RetryPolicySuccessTemplate = "Retry policy succeeded for {OperationName} on attempt {Attempt}";
+    public const string RetryPolicyFailedTemplate = "Retry policy failed for {OperationName} on attempt {Attempt}, retrying in {DelayMs}ms";
+    public const string RetryPolicyExhaustedTemplate = "Retry policy exhausted for {OperationName} after {MaxAttempts} attempts";
+    public const string CircuitBreakerOpenTemplate = "Circuit breaker opened for {OperationName} after {FailureCount} failures";
+    public const string CircuitBreakerHalfOpenTemplate = "Circuit breaker half-open for {OperationName}, testing recovery";
+    public const string CircuitBreakerClosedTemplate = "Circuit breaker closed for {OperationName}, service recovered";
+    public const string FallbackExecutedTemplate = "Fallback executed for {OperationName}: {FallbackReason}";
+    public const string HealthCheckFailedTemplate = "Health check failed for {ComponentName}: {ErrorMessage}";
+
+    // Performance monitoring events (5000-5999)
+    public const int PerformanceMonitorStarted = 5001;
+    public const int PerformanceReport = 5002;
+    public const int PerformanceThresholdExceeded = 5003;
+    public const int ResourceUsageHigh = 5004;
+
+    public const string PerformanceMonitorStartedTemplate = "Performance monitor started with reporting interval {ReportingInterval}";
+    public const string PerformanceReportTemplate = "Performance report: {TotalOperations} operations, {AverageSuccessRate:F1}% success rate, {MemoryMB}MB memory, {ThreadCount} threads";
+    public const string PerformanceThresholdExceededTemplate = "Performance threshold exceeded: {OperationName} took {DurationMs}ms (threshold: {ThresholdMs}ms)";
+    public const string ResourceUsageHighTemplate = "High resource usage detected: {ResourceType} = {Value} (threshold: {Threshold})";
 }

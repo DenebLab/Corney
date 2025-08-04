@@ -1,4 +1,5 @@
 ﻿using Corney.Common.Logging;
+using Corney.Common.Performance;
 using Corney.Core.Features.Cron.Service;
 using Corney.Features.App;
 using Corney.Features.Cron;
@@ -92,6 +93,13 @@ internal static class App
                 services.AddSingleton<FileWatchHelpers>();
                 services.AddSingleton<CrontabFileParser>();
 
+                // Add performance monitoring services
+                services.AddPerformanceMonitoring(options =>
+                {
+                    options.ReportingInterval = TimeSpan.FromMinutes(15);
+                    options.DashboardInterval = TimeSpan.FromHours(1);
+                    options.EnableAutomaticReporting = true;
+                });
 
                 services.AddMediatR(cfg => { cfg.RegisterServicesFromAssembly(typeof(App).Assembly); });
             })

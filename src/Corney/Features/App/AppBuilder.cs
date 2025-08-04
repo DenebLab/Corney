@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Threading.Tasks;
 using Corney.Common.Io;
 using Deneblab.Common.Host;
@@ -21,37 +22,81 @@ public class AppBuilder
     public CorneyConfig CreateConfig(AppEnv env)
     {
         var configPath = ConfigPath(env);
+        CorneyConfig config;
+        
         if (File.Exists(configPath))
         {
             _log.Trace($"Using existing config file at {configPath}");
-            var config = Misc.ReadJson<CorneyConfig>(configPath);
-            return config;
+            config = Misc.ReadJson<CorneyConfig>(configPath);
         }
         else
         {
             _log.Trace($"Creating new config file at {configPath}");
-            var config = new CorneyConfig();
+            config = new CorneyConfig();
             Misc.WriteJson(configPath, config);
-            return config;
         }
+
+        // Validate configuration
+        var validationResult = ConfigurationValidator.ValidateConfiguration(config, _log);
+        
+        if (!validationResult.IsValid)
+        {
+            var errorMessage = validationResult.GetFormattedErrorMessage();
+            _log.LogError("Configuration validation failed:{NewLine}{ErrorMessage}", Environment.NewLine, errorMessage);
+            throw new InvalidOperationException($"Configuration validation failed:{Environment.NewLine}{errorMessage}");
+        }
+
+        // Log warnings if any
+        if (validationResult.Warnings.Count > 0)
+        {
+            foreach (var warning in validationResult.Warnings)
+            {
+                _log.LogWarning("Configuration warning - {PropertyName}: {WarningMessage}", 
+                    warning.PropertyName, warning.WarningMessage);
+            }
+        }
+
+        return config;
     }
 
     public async Task<CorneyConfig> CreateConfigAsync(AppEnv env)
     {
         var configPath = ConfigPath(env);
+        CorneyConfig config;
+        
         if (File.Exists(configPath))
         {
             _log.Trace($"Using existing config file at {configPath}");
-            var config = await Misc.ReadJsonAsync<CorneyConfig>(configPath);
-            return config;
+            config = await Misc.ReadJsonAsync<CorneyConfig>(configPath);
         }
         else
         {
             _log.Trace($"Creating new config file at {configPath}");
-            var config = new CorneyConfig();
+            config = new CorneyConfig();
             await Misc.WriteJsonAsync(configPath, config);
-            return config;
         }
+
+        // Validate configuration
+        var validationResult = ConfigurationValidator.ValidateConfiguration(config, _log);
+        
+        if (!validationResult.IsValid)
+        {
+            var errorMessage = validationResult.GetFormattedErrorMessage();
+            _log.LogError("Configuration validation failed:{NewLine}{ErrorMessage}", Environment.NewLine, errorMessage);
+            throw new InvalidOperationException($"Configuration validation failed:{Environment.NewLine}{errorMessage}");
+        }
+
+        // Log warnings if any
+        if (validationResult.Warnings.Count > 0)
+        {
+            foreach (var warning in validationResult.Warnings)
+            {
+                _log.LogWarning("Configuration warning - {PropertyName}: {WarningMessage}", 
+                    warning.PropertyName, warning.WarningMessage);
+            }
+        }
+
+        return config;
     }
 
     private string ConfigPath(AppEnv env)
