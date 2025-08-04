@@ -28,6 +28,10 @@ public static class LogMessages
     public static readonly EventId FileReadRetry = new(3001, nameof(FileReadRetry));
     public static readonly EventId FileMonitorStarted = new(3010, nameof(FileMonitorStarted));
     public static readonly EventId FileChanged = new(3020, nameof(FileChanged));
+    public static readonly EventId ConfigReloadSkipped = new(3030, nameof(ConfigReloadSkipped));
+    public static readonly EventId ConfigReloadCompleted = new(3031, nameof(ConfigReloadCompleted));
+    public static readonly EventId FileMonitoringOptimized = new(3040, nameof(FileMonitoringOptimized));
+    public static readonly EventId ServiceStopping = new(3050, nameof(ServiceStopping));
 
     // Application Event IDs (4000-4999)
     public static readonly EventId ApplicationStarted = new(4001, nameof(ApplicationStarted));
@@ -69,6 +73,10 @@ public static class LogMessages
     public const string FileReadRetryTemplate = "File not available [{Attempt}/{MaxAttempts}] for path {FilePath}";
     public const string FileMonitorStartedTemplate = "Monitoring {FileCount} files for changes";
     public const string FileChangedTemplate = "File change detected: {FilePath}";
+    public const string ConfigReloadSkippedTemplate = "Configuration reload skipped: {Reason}";
+    public const string ConfigReloadCompletedTemplate = "Configuration reloaded successfully in {DurationMs}ms";
+    public const string FileMonitoringOptimizedTemplate = "File monitoring optimized: {OptimizationType} with {DebounceMs}ms debounce";
+    public const string ServiceStoppingTemplate = "Service stopping: {ServiceName}";
 
     // Application message templates
     public const string ApplicationStartedTemplate = "Application started: {ApplicationVersion}";

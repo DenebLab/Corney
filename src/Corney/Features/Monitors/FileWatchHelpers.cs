@@ -16,7 +16,12 @@ namespace Corney.Features.Monitors
             _log = log;
         }
 
-        public  IObservable<FileSystemEventArgs> CreateForFile(string path)
+        public IObservable<FileSystemEventArgs> CreateForFile(string path)
+        {
+            return CreateForFile(path, TimeSpan.FromMilliseconds(250));
+        }
+
+        public IObservable<FileSystemEventArgs> CreateForFile(string path, TimeSpan debounceInterval)
         {
             var dir = Path.GetDirectoryName(path);
             var filter = Path.GetFileName(path);
@@ -29,10 +34,9 @@ namespace Corney.Features.Monitors
                     dir ?? throw new InvalidOperationException(),
                     filter ?? throw new InvalidOperationException())
                 {
-                    NotifyFilter = NotifyFilters.LastAccess | NotifyFilters.LastWrite
-                                                            | NotifyFilters.FileName
+                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.CreationTime,
+                    IncludeSubdirectories = false
                 };
-
 
                 compositeDisposable.Add(fsw);
 
@@ -42,14 +46,16 @@ namespace Corney.Features.Monitors
                     Observable.FromEventPattern<FileSystemEventHandler, FileSystemEventArgs>(x => fsw.Created += x,
                         x => fsw.Created -= x),
                     Observable.FromEventPattern<FileSystemEventHandler, FileSystemEventArgs>(x => fsw.Deleted += x,
-                        x => fsw.Deleted -= x));
+                        x => fsw.Deleted -= x))
+                    .Where(x => x.EventArgs.ChangeType != WatcherChangeTypes.Deleted || File.Exists(x.EventArgs.FullPath))
+                    .DistinctUntilChanged(x => new { x.EventArgs.FullPath, x.EventArgs.ChangeType });
 
-                compositeDisposable.Add(allEvents.Throttle(TimeSpan.FromMilliseconds(250))
-                   .Finally(() =>
+                compositeDisposable.Add(allEvents
+                    .Throttle(debounceInterval)
+                    .Finally(() =>
                     {
                         _log.Debug($"Finally on FileSystemEventArgsObservable: {path}");
                         fsw.Dispose();
-
                     })
                     .Select(x => x.EventArgs)
                     .Synchronize(subj)
