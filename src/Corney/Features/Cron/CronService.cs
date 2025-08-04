@@ -18,6 +18,15 @@ using Microsoft.Extensions.Logging;
 
 namespace Corney.Core.Features.Cron.Service;
 
+/// <summary>
+/// Core cron scheduling service that manages crontab files and executes scheduled tasks.
+/// This service monitors configuration changes, parses cron expressions, and ensures
+/// tasks are executed at their scheduled times with proper error handling and logging.
+/// </summary>
+/// <remarks>
+/// The CronService uses a ReaderWriterLockSlim for thread-safe operations and integrates
+/// with the performance monitoring system to track execution metrics and performance.
+/// </remarks>
 public class CronService : ICronService, IDisposable
 {
     private readonly ReaderWriterLockSlim _stateLock = new(LockRecursionPolicy.SupportsRecursion);
@@ -40,12 +49,29 @@ public class CronService : ICronService, IDisposable
         _performanceMonitor = performanceMonitor;
     }
 
+    /// <summary>
+    /// Starts the cron service with the specified crontab files.
+    /// This method initializes the service, parses all cron definitions, and begins scheduling.
+    /// </summary>
+    /// <param name="crontabFiles">Array of crontab file paths to monitor and execute</param>
+    /// <exception cref="ArgumentNullException">Thrown when crontabFiles is null</exception>
+    /// <exception cref="FileNotFoundException">Thrown when a crontab file cannot be found</exception>
     public void Start(string[] crontabFiles)
     {
         _log.LogInformation(LogMessages.CronServiceStarted, LogMessages.CronServiceStartedTemplate, _corneyRegistry.AppVersion.Sem);
         InitWork(crontabFiles);
     }
 
+    /// <summary>
+    /// Restarts the cron service with updated crontab files.
+    /// This method stops current scheduling, disposes resources, and reinitializes with new files.
+    /// </summary>
+    /// <param name="cronFiles">Array of updated crontab file paths to monitor</param>
+    /// <remarks>
+    /// This method is typically called when configuration changes are detected,
+    /// allowing the service to pick up new or modified cron definitions without
+    /// requiring a full application restart.
+    /// </remarks>
     public void Restart(string[] cronFiles)
     {
         _log.LogInformation(LogMessages.CronServiceRestarted, LogMessages.CronServiceRestartedTemplate, _corneyRegistry.AppVersion.Sem);

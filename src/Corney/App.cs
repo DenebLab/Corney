@@ -1,4 +1,5 @@
-﻿using Corney.Common.Logging;
+﻿using Corney.Common.Diagnostics;
+using Corney.Common.Logging;
 using Corney.Common.Performance;
 using Corney.Core.Features.Cron.Service;
 using Corney.Features.App;
@@ -100,6 +101,12 @@ internal static class App
                     options.DashboardInterval = TimeSpan.FromHours(1);
                     options.EnableAutomaticReporting = true;
                 });
+                
+                // Add development and diagnostics services
+                services.AddSingleton<DevelopmentValidator>();
+                
+                // Enhanced logging with correlation context
+                services.AddTransient(typeof(EnhancedLogger<>));
 
                 services.AddMediatR(cfg => { cfg.RegisterServicesFromAssembly(typeof(App).Assembly); });
             })
@@ -133,6 +140,34 @@ internal static class App
 
 
         _log.LogInformation(LogMessages.ApplicationStarted, LogMessages.ApplicationStartedTemplate, registry.AppEnv.AppVersion.FullName);
+        
+        // Run development-time validation if in development environment
+        if (registry.AppEnv.IsDev)
+        {
+            try
+            {
+                var validator = host.Services.GetRequiredService<DevelopmentValidator>();
+                
+                // Create a temporary config object for validation
+                var tempConfig = new CorneyConfig
+                {
+                    CrontabFiles = registry.CrontabFiles,
+                    CheckIntervalSeconds = 60, // Default values
+                    FileMonitoringDebounceSeconds = 5
+                };
+                
+                var validationPassed = validator.ValidateDevelopmentEnvironment(registry.ConfigFilePath, tempConfig);
+                
+                if (!validationPassed)
+                {
+                    _log.LogWarning("Development environment validation failed. Check logs for details.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "Development validation could not be completed");
+            }
+        }
 
         var mediator = host.Services.GetRequiredService<IMediator>();
 

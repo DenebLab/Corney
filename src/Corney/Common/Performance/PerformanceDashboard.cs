@@ -26,7 +26,7 @@ public class PerformanceDashboard
     /// <summary>
     /// Generate a comprehensive performance dashboard report
     /// </summary>
-    public async Task<string> GenerateDashboardAsync()
+    public Task<string> GenerateDashboardAsync()
     {
         var report = _performanceMonitor.GenerateReport();
         var dashboard = new StringBuilder();
@@ -55,7 +55,7 @@ public class PerformanceDashboard
         // Performance Alerts
         AppendPerformanceAlerts(dashboard, report);
 
-        return dashboard.ToString();
+        return Task.FromResult(dashboard.ToString());
     }
 
     /// <summary>
