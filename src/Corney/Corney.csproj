@@ -1,32 +1,32 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
-    <RootNamespace>Corney</RootNamespace>
-    <AssemblyName>Corney</AssemblyName>
-    <Nullable>disable</Nullable>
-    <ImplicitUsings>disable</ImplicitUsings>
-    <ApplicationIcon>Resources\AppIco.ico</ApplicationIcon>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-	  <UseWindowsForms>true</UseWindowsForms>
-  </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net8.0-windows</TargetFramework>
+		<UseWindowsForms>true</UseWindowsForms>
+		<RootNamespace>Corney</RootNamespace>
+		<AssemblyName>Corney</AssemblyName>
+		<Nullable>disable</Nullable>
+		<ImplicitUsings>disable</ImplicitUsings>
+		<ApplicationIcon>Resources\AppIco.ico</ApplicationIcon>
+		<EnableWindowsTargeting>true</EnableWindowsTargeting>
+		<GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+		<UseWindowsForms>true</UseWindowsForms>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <Compile Remove="Common\App\**" />
-    <EmbeddedResource Remove="Common\App\**" />
-    <None Remove="Common\App\**" />
-  </ItemGroup>
+	<ItemGroup>
+		<Compile Remove="Common\App\**" />
+		<EmbeddedResource Remove="Common\App\**" />
+		<None Remove="Common\App\**" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Cronos" Version="0.11.0" />
-    <PackageReference Include="MediatR" Version="12.5.0" />
-    <PackageReference Include="Deneblab.Common" Version="1.0.52" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.7" />
-    <PackageReference Include="System.Reactive" Version="6.0.1" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Cronos" Version="0.11.0" />
+		<PackageReference Include="MediatR" Version="12.5.0" />
+		<PackageReference Include="Deneblab.Common" Version="1.0.52" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.7" />
+		<PackageReference Include="System.Reactive" Version="6.0.1" />
+	</ItemGroup>
 
 
 </Project>

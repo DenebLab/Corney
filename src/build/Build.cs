@@ -261,6 +261,7 @@ class Build : NukeBuild
             var singleFileOutDir = RootDirectory / "dev" / "app.standalone";
             singleFileOutDir.CreateOrCleanDirectory();
 
+
             // Restore with runtime identifier
             DotNetRestore(s => s
                 .SetProjectFile(p.Path)
@@ -272,13 +273,13 @@ class Build : NukeBuild
                 .EnableNoRestore()
                 .SetConfiguration(Configuration)
                 .SetOutput(singleFileOutDir)
+                .EnablePublishSingleFile()
+                .SetSelfContained(false)
+                .SetRuntime("win-x64")
                 .SetVersion(AbcVersion.SemVersion)
                 .SetFileVersion(AbcVersion.SemVersion)
                 .SetAssemblyVersion(AbcVersion.SemVersion)
                 .SetInformationalVersion(AbcVersion.InformationalVersion)
-                .EnablePublishSingleFile()
-                .SetSelfContained(false)
-                .SetRuntime("win-x64")
             );
 
             Log.Information($"Single-file executable created: {singleFileOutDir / "Corney.exe"}");
@@ -310,4 +311,6 @@ class Build : NukeBuild
         Log.Information($"Branch: {branch}; Blob name: {blobName}");
         return blobName;
     }
+
+  
 }

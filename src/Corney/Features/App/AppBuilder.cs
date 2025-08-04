@@ -1,10 +1,24 @@
 ﻿using System;
 using System.IO;
+using System.Runtime.Versioning;
+using System.Text.Json;
 using System.Threading.Tasks;
+using System.Windows.Forms;
+using Corney.Common.Diagnostics;
 using Corney.Common.Io;
+using Corney.Common.Logging;
+using Corney.Common.Performance;
+using Corney.Core.Features.Cron.Service;
+using Corney.Features.Cron;
+using Corney.Features.Monitors;
+using Corney.Features.Processes;
 using Deneblab.Common.Host;
 using Deneblab.Common.Logging;
+using MediatR;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using ZLogger.Providers;
 
 namespace Corney.Features.App;
 
@@ -19,51 +33,104 @@ public class AppBuilder
         _log = getLoggerFactory.CreateLogger<AppBuilder>();
     }
 
-    public CorneyConfig CreateConfig(AppEnv env)
+    public async Task MainLowLevel(string[] args)
     {
-        var configPath = ConfigPath(env);
-        CorneyConfig config;
-        
-        if (File.Exists(configPath))
+        try
         {
-            _log.Trace($"Using existing config file at {configPath}");
-            config = Misc.ReadJson<CorneyConfig>(configPath);
+            var config = await CreateConfigAsync(_env);
+            var registry = CreateRegistry(_env, config);
+            var host = CreateHost(args, registry);
+            await MainRegular(host);
         }
-        else
+        catch (Exception e)
         {
-            _log.Trace($"Creating new config file at {configPath}");
-            config = new CorneyConfig();
-            Misc.WriteJson(configPath, config);
+            _log.Critical(e.Message);
+            _log.Critical(e);
+            _log.Critical(e.StackTrace);
+            _log.Critical($"Env: {JsonSerializer.Serialize(_env,
+                new JsonSerializerOptions { WriteIndented = true })}");
         }
-
-        // Validate configuration
-        var validationResult = ConfigurationValidator.ValidateConfiguration(config, _log);
-        
-        if (!validationResult.IsValid)
-        {
-            var errorMessage = validationResult.GetFormattedErrorMessage();
-            _log.LogError("Configuration validation failed:{NewLine}{ErrorMessage}", Environment.NewLine, errorMessage);
-            throw new InvalidOperationException($"Configuration validation failed:{Environment.NewLine}{errorMessage}");
-        }
-
-        // Log warnings if any
-        if (validationResult.Warnings.Count > 0)
-        {
-            foreach (var warning in validationResult.Warnings)
-            {
-                _log.LogWarning("Configuration warning - {PropertyName}: {WarningMessage}", 
-                    warning.PropertyName, warning.WarningMessage);
-            }
-        }
-
-        return config;
     }
 
-    public async Task<CorneyConfig> CreateConfigAsync(AppEnv env)
+    private async Task MainRegular(IHost host)
+    {
+        var log = host.Services.GetRequiredService<ILogger<AppBuilder>>();
+        var registry = host.Services.GetRequiredService<CorneyRegistry>();
+        try
+        {
+            await Process(host, log, registry);
+        }
+        catch (Exception e)
+        {
+            log.Critical(e.Message);
+            log.Critical(e);
+            log.Critical(e?.StackTrace);
+            log.Critical($"Env: {JsonSerializer.Serialize(_env,
+                new JsonSerializerOptions { WriteIndented = true })}");
+        }
+    }
+
+    private IHost CreateHost(string[] args, CorneyRegistry registry)
+    {
+        var host = Host.CreateDefaultBuilder(args)
+            // Optionally, register additional services such as your WinForms main form.
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton(registry);
+                services.AddTransient<ICronService, CronService>();
+                services.AddTransient<ProcessWrapper>();
+                services.AddHostedService<MinuteBackgroundService>();
+                services.AddSingleton<ConfigFileMonitorService>();
+                services.AddSingleton<FileWatchHelpers>();
+                services.AddSingleton<CrontabFileParser>();
+
+                // Add performance monitoring services
+                services.AddPerformanceMonitoring(options =>
+                {
+                    options.ReportingInterval = TimeSpan.FromMinutes(15);
+                    options.DashboardInterval = TimeSpan.FromHours(1);
+                    options.EnableAutomaticReporting = true;
+                });
+
+                // Add development and diagnostics services
+                services.AddSingleton<DevelopmentValidator>();
+
+                // Enhanced logging with correlation context
+                services.AddTransient(typeof(EnhancedLogger<>));
+
+                services.AddMediatR(cfg => { cfg.RegisterServicesFromAssembly(typeof(AppBuilder).Assembly); });
+            })
+            .ConfigureLogging(l =>
+            {
+                l.ClearProviders();
+                l.SetMinimumLevel(LogLevel.Debug);
+                l.AddZLoggerArchivingRollingFile(o =>
+                {
+                    o.FilePathSelector = (dt, sequenceNumber) =>
+                        Path.Combine(registry.AppEnv.LogDir,
+                            $"{registry.AppEnv.AppNameSlug}.{dt:yyyy-MM-dd}.{sequenceNumber:000}.txt");
+                    o.RollingInterval = RollingInterval.Day;
+                    o.MaxArchiveFilesPerLog = 7;
+                    o.ArchiveInactiveFiles = true; // Archive inactive files
+                    // o.DebugLoggerFactory = _loggerFactory;
+
+                    //o.EnableFileDeletionRecovery = true; // Enable recovery of deleted files
+                    //o.AllowExternalFileDeletion = true; // Allow external deletion of log files
+                    //o.AllowExternalFileReading = true;
+
+                    if (registry.AppEnv.IsDev) o.CloseFileAfterEachWrite = true; // Close file after each write
+                });
+            })
+            .Build();
+
+        return host;
+    }
+
+    private async Task<CorneyConfig> CreateConfigAsync(AppEnv env)
     {
         var configPath = ConfigPath(env);
         CorneyConfig config;
-        
+
         if (File.Exists(configPath))
         {
             _log.Trace($"Using existing config file at {configPath}");
@@ -78,7 +145,7 @@ public class AppBuilder
 
         // Validate configuration
         var validationResult = ConfigurationValidator.ValidateConfiguration(config, _log);
-        
+
         if (!validationResult.IsValid)
         {
             var errorMessage = validationResult.GetFormattedErrorMessage();
@@ -88,16 +155,56 @@ public class AppBuilder
 
         // Log warnings if any
         if (validationResult.Warnings.Count > 0)
-        {
             foreach (var warning in validationResult.Warnings)
-            {
-                _log.LogWarning("Configuration warning - {PropertyName}: {WarningMessage}", 
+                _log.LogWarning("Configuration warning - {PropertyName}: {WarningMessage}",
                     warning.PropertyName, warning.WarningMessage);
-            }
-        }
 
         return config;
     }
+
+    [SupportedOSPlatform("windows6.1")]
+    private static async Task Process(IHost host, ILogger log, CorneyRegistry registry)
+    {
+        log.LogInformation(LogMessages.ApplicationStarted, LogMessages.ApplicationStartedTemplate,
+            registry.AppEnv.AppVersion.FullName);
+        log.LogInformation($"Mode: {registry.AppEnv.AppMode}; " +
+                           $"Root: {registry.AppEnv.RootDir};");
+
+        // Run development-time validation if in development environment
+        if (registry.AppEnv.IsDev)
+            try
+            {
+                var validator = host.Services.GetRequiredService<DevelopmentValidator>();
+
+                // Create a temporary config object for validation
+                var tempConfig = new CorneyConfig
+                {
+                    CrontabFiles = registry.CrontabFiles,
+                    CheckIntervalSeconds = 60, // Default values
+                    FileMonitoringDebounceSeconds = 5
+                };
+
+                var validationPassed = validator.ValidateDevelopmentEnvironment(registry.ConfigFilePath, tempConfig);
+
+                if (!validationPassed)
+                    log.LogWarning("Development environment validation failed. Check logs for details.");
+            }
+            catch (Exception ex)
+            {
+                log.LogWarning(ex, "Development validation could not be completed");
+            }
+
+        var mediator = host.Services.GetRequiredService<IMediator>();
+        await mediator.Publish(new AppStartingEvent());
+        await mediator.Publish(new AppStartedEvent());
+        await mediator.Publish(new StartCorneyReq(registry.CrontabFiles));
+
+
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+        Application.Run(new CorneyContext(registry, mediator));
+    }
+
 
     private string ConfigPath(AppEnv env)
     {
@@ -105,7 +212,7 @@ public class AppBuilder
         return configPath;
     }
 
-    public CorneyRegistry GetRegistry(AppEnv env, CorneyConfig config)
+    private CorneyRegistry CreateRegistry(AppEnv env, CorneyConfig config)
     {
         var configPath = ConfigPath(env);
         return new CorneyRegistry(env, configPath, config);
