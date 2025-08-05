@@ -244,7 +244,7 @@ public class Tokenize2Tests
 
         // Act & Assert
         var exception = Assert.Throws<ArgumentException>(() => Pharse.Tokenize2(cmd));
-        Assert.Equal("Missing closing quote\r\nParameter name: cmd", exception.Message);
+        Assert.Equal("Missing closing quote (Parameter 'cmd')", exception.Message);
     }
 
 

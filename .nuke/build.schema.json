@@ -28,15 +28,8 @@
         "ConfigureAzureDevOps",
         "GithubRelease",
         "Information",
-        "Publish",
-        "PublishAzureDevOpsArtifacts",
-        "PublishAzureDevOpsStorage",
-        "PublishLocal",
-        "PublishRobeNova",
-        "PublishSingleFile",
-        "PushNuGetToAzureArtifacts",
         "Restore",
-        "Syrup"
+        "Test"
       ]
     },
     "Verbosity": {
