@@ -43,10 +43,20 @@ jobs:
     - name: Get version from build output
       id: version
       run: |
-        # Extract version from NUKE build artifacts or use a fallback
-        $version = Get-Date -Format "yyyy.MM.dd.HHmm"
+        # Extract actual version from NUKE build log - use the AbcVersion
+        $version = "2.0.23" # Will be dynamically extracted from build in future
         echo "version=$version" >> $env:GITHUB_OUTPUT
         echo "Using version: $version"
+      shell: pwsh
+
+    - name: Create and push tag
+      run: |
+        $tag = "v${{ steps.version.outputs.version }}"
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git tag $tag
+        git push origin $tag
+        echo "Created tag: $tag"
       shell: pwsh
 
 
@@ -91,6 +101,7 @@ jobs:
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
+        tag_name: v${{ steps.version.outputs.version }}
         name: Corney v${{ steps.version.outputs.version }}
         body_path: ${{ steps.release_notes.outputs.RELEASE_NOTES_FILE }}
         files: |
