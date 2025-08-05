@@ -1,3 +1,4 @@
+
 param (
     [string]$Version,
     [switch]$ForceUpdate,
@@ -70,6 +71,15 @@ try {
 $version = $release.tag_name -replace '^v', ''
 $versionDir = Join-Path $appRoot "$appName.$version"
 
+# --------- ALWAYS KILL RUNNING PROCESSES ---------
+$existingProcesses = Get-Process -ErrorAction SilentlyContinue | Where-Object {
+    $_.Path -like "$appRoot\*\*.exe"
+}
+foreach ($p in $existingProcesses) {
+    Write-Host "🔪 Killing process: $($p.ProcessName) [PID $($p.Id)]"
+    try { $p.Kill() } catch { Write-Warning "Failed to kill process $($p.Id): $($_.Exception.Message)" }
+}
+
 # --------- HANDLE EXISTING INSTALL ---------
 if ((Test-Path "$versionDir") -and (-not $ForceUpdate)) {
     Write-Host "$appName v$version is already installed. Launching existing version..."
@@ -98,13 +108,6 @@ if ((Test-Path "$versionDir") -and (-not $ForceUpdate)) {
 }
 
 if ($ForceUpdate -and (Test-Path "$versionDir")) {
-    # Kill running processes
-    $procList = Get-Process | Where-Object { $_.Path -like "$versionDir\*.exe" }
-    foreach ($p in $procList) {
-        Write-Host "🔪 Killing process: $($p.ProcessName) [PID $($p.Id)]"
-        try { $p.Kill() } catch { Write-Warning "Failed to kill process $($p.Id): $($_.Exception.Message)" }
-    }
-
     Write-Host "⚠ --ForceUpdate enabled — removing existing $versionDir"
     $success = TryRemoveDirectory $versionDir
     if (-not $success) {
@@ -113,4 +116,66 @@ if ($ForceUpdate -and (Test-Path "$versionDir")) {
     }
 }
 
-# (continue script here... e.g. download/extract/install/run)
+# --------- DOWNLOAD AND INSTALL ---------
+$asset = $release.assets | Where-Object { $_.name -like "*.zip" } | Select-Object -First 1
+if (-not $asset) {
+    Write-Error "No zip asset found in the release."
+    exit 1
+}
+
+$zipPath = Join-Path $env:TEMP $asset.name
+Write-Host "⬇ Downloading version $version..."
+Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath -Headers $headers
+
+$tempExtract = Join-Path $baseDir "tmp_extract"
+Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $tempExtract
+Expand-Archive -Path $zipPath -DestinationPath $tempExtract -Force
+
+$items = Get-ChildItem -Path $tempExtract
+$singleFolder = $items.Count -eq 1 -and $items[0].PSIsContainer
+
+New-Item -Path $versionDir -ItemType Directory -Force | Out-Null
+if ($singleFolder) {
+    $innerPath = $items[0].FullName
+    Write-Host "📁 Nested folder detected. Moving contents of: $innerPath"
+    Move-Item -Path (Join-Path $innerPath "*") -Destination $versionDir -Force
+} else {
+    $exePath = Get-ChildItem -Path $tempExtract -Recurse -Filter *.exe -File | Select-Object -First 1
+    if ($exePath) {
+        $exeDir = Split-Path $exePath.FullName
+        Write-Host "📁 Found executable inside: $exeDir"
+        Move-Item -Path "$exeDir\*" -Destination $versionDir -Force
+    } else {
+        Write-Host "📁 Flat zip structure detected."
+        Move-Item -Path "$tempExtract\*" -Destination $versionDir -Force
+    }
+}
+
+Remove-Item $tempExtract -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+
+# --------- SHORTCUT ---------
+if (-not $SkipShortcut) {
+    $shortcutPath = Join-Path $baseDir "$appName.lnk"
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut($shortcutPath)
+    $exeFile = Get-ChildItem -Path $versionDir -Recurse -Filter *.exe -File | Select-Object -First 1
+    $shortcut.TargetPath = $exeFile.FullName
+    $shortcut.WorkingDirectory = $versionDir
+    $shortcut.Save()
+    Write-Host "🔗 Shortcut created: $shortcutPath"
+}
+
+# --------- STARTUP ---------
+if (-not $SkipStartup) {
+    $startupPath = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\$appName.lnk"
+    Copy-Item -Path $shortcutPath -Destination $startupPath -Force
+    Write-Host "✅ Added $appName to Windows startup"
+}
+
+# --------- RUN ---------
+if (-not $Silent) {
+    Write-Host "🚀 Launching: $exeFile"
+    $p = Start-Process -FilePath $exeFile.FullName -ArgumentList $launchArgs -PassThru
+    Write-Host "$appName v$version is now running. PID: $($p.Id)"
+}

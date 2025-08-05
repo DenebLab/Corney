@@ -83,16 +83,37 @@ cd Corney
 
 ### Installation Options
 
-#### Option 1: Standalone Executable
-Download the self-contained executable that includes all dependencies:
+#### Option 1: One-Click PowerShell Installer (Recommended)
+Automated installation with system integration:
+```powershell
+# Install latest version
+irm https://raw.githubusercontent.com/DenebLab/Corney/main/scripts/install.ps1 | iex
+
+# Install specific version
+irm https://raw.githubusercontent.com/DenebLab/Corney/main/scripts/install.ps1 | iex -Args "-Version 2.0.23"
+
+# Install without startup integration
+irm https://raw.githubusercontent.com/DenebLab/Corney/main/scripts/install.ps1 | iex -Args "-SkipStartup"
+```
+
+**Installer Features:**
+- 🚀 **Automatic download** from GitHub releases
+- 📁 **Organized installation** in `%LOCALAPPDATA%\Deneblab\Corney\`
+- 🔄 **Version management** with side-by-side installs
+- 🔗 **Desktop shortcuts** and Start Menu integration
+- ⚡ **Startup registration** for automatic launch
+- 🛡️ **Safe updates** with process management
+
+#### Option 2: Manual Download
+Download the self-contained executable:
 ```bash
 # Download from releases
-curl -L -o corney.zip https://github.com/DenebLab/Corney/releases/latest/download/corney-standalone.zip
+curl -L -o corney.zip https://github.com/DenebLab/Corney/releases/latest/download/Corney-2.0.23-build.zip
 unzip corney.zip
 ./Corney.exe
 ```
 
-#### Option 2: Build from Source
+#### Option 3: Build from Source
 ```bash
 # Prerequisites: .NET 8.0 SDK
 git clone https://github.com/DenebLab/Corney.git
@@ -104,6 +125,33 @@ cd Corney
 # Or direct dotnet build
 dotnet build src/Corney.sln
 ```
+
+### Advanced Installer Usage
+
+The PowerShell installer supports several parameters for customized installation:
+
+```powershell
+# Download installer
+$installer = irm https://raw.githubusercontent.com/DenebLab/Corney/main/scripts/install.ps1
+
+# Run with parameters
+& $installer -Version "2.0.23" -ForceUpdate -SkipStartup -Silent
+```
+
+**Installer Parameters:**
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `-Version` | Install specific version | `-Version "2.0.23"` |
+| `-ForceUpdate` | Force reinstall if version exists | `-ForceUpdate` |
+| `-SkipShortcut` | Don't create desktop shortcut | `-SkipShortcut` |
+| `-SkipStartup` | Don't add to Windows startup | `-SkipStartup` |
+| `-Silent` | Install without launching app | `-Silent` |
+
+**Installation Paths:**
+- **Application**: `%LOCALAPPDATA%\Deneblab\Corney\app\Corney.{version}\`
+- **Configuration**: `%LOCALAPPDATA%\Deneblab\Corney\config\`
+- **Logs**: `%LOCALAPPDATA%\Deneblab\Corney\log\`
+- **Shortcuts**: `%LOCALAPPDATA%\Deneblab\Corney\Corney.lnk`
 
 ## 🔧 Configuration
 
