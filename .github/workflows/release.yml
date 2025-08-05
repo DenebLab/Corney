@@ -1,5 +1,4 @@
 name: Release
-run-name: "🚀 Corney v${{ needs.prepare.outputs.version }} — ${{ needs.prepare.outputs.commit_message }}"
 
 on:
   push:
@@ -11,126 +10,105 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
-  prepare:
-    runs-on: windows-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      commit_message: ${{ steps.commit.outputs.message }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: Install AbcVersion tool
-        run: dotnet tool install --global Deneblab.AbcVersionCmd          
-
-      - name: Get version from build output
-        id: version
-        run: |
-          $VERSION = abcversion -p semversion
-          echo "version=$VERSION" >> $env:GITHUB_OUTPUT
-          echo "Using version: $VERSION"
-        shell: pwsh
-
-      - name: Get commit message
-        id: commit
-        run: |
-          $MSG = git log -1 --pretty=%s
-          echo "message=$MSG" >> $env:GITHUB_OUTPUT
-        shell: pwsh
-
   release:
-    needs: prepare
     runs-on: windows-latest
     permissions:
       contents: write
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        fetch-tags: true
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
 
-      - name: Cache .NET packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+    - name: Cache .NET packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
 
-      - name: Install AbcVersion tool
-        run: dotnet tool install --global Deneblab.AbcVersionCmd          
+    - name: Install AbcVersion tool
+      run: dotnet tool install --global Deneblab.AbcVersionCmd          
 
-      - name: Build with NUKE (GithubRelease)
-        run: .\build.cmd GithubRelease
-        shell: cmd
+    - name: Get version from build output
+      id: version
+      run: |
+          $VERSION = abcversion -p semversion
+          echo "version=$VERSION" >> $env:GITHUB_OUTPUT
+          echo "Using version: $VERSION"
+      shell: pwsh
 
-      - name: Create and push tag
-        run: |
-          $tag = "v${{ needs.prepare.outputs.version }}"
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git tag $tag
-          git push origin $tag
-          echo "Created tag: $tag"
-        shell: pwsh
 
-      - name: Prepare release assets
-        run: |
-          mkdir release-assets
-          Compress-Archive -Path ".nuke/temp/w/Corney/github-release/*" -DestinationPath "release-assets/Corney-${{ needs.prepare.outputs.version }}-build.zip"
-        shell: pwsh
+    - name: Build with NUKE (GithubRelease)
+      run: .\build.cmd GithubRelease
+      shell: cmd
 
-      - name: Generate release notes
-        id: release_notes
-        run: |
-          $notes = @"
-          ## Corney v${{ needs.prepare.outputs.version }}
-          
-          ### What's New
-          - Built from commit ${{ github.sha }}
-          - .NET 8.0 single-file executable
-          - Windows crontab file executor with system tray integration
-          
-          ### Downloads
-          - **Corney-${{ needs.prepare.outputs.version }}-build.zip** - Full build artifacts
-          
-          ### System Requirements  
-          - Windows 10/11 or Windows Server 2016+
-          - .NET 8.0 Runtime (for non-single-file builds)
-          
-          ### Usage
-          1. Extract the executable
-          2. Configure your crontab files in the app directory
-          3. Run Corney.exe to start the scheduler
-          4. Access via system tray icon
-          "@
-          $notes | Out-File -FilePath release-notes.txt -Encoding utf8
-          echo "RELEASE_NOTES_FILE=release-notes.txt" >> $env:GITHUB_OUTPUT
-        shell: pwsh
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ needs.prepare.outputs.version }}
-          name: Corney v${{ needs.prepare.outputs.version }}
-          body_path: ${{ steps.release_notes.outputs.RELEASE_NOTES_FILE }}
-          files: |
-            release-assets/*
-          draft: false
-          prerelease: false
-          generate_release_notes: true
+    - name: Create and push tag
+      run: |
+        $tag = "v${{ steps.version.outputs.version }}"
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git tag $tag
+        git push origin $tag
+        echo "Created tag: $tag"
+      shell: pwsh
+
+
+
+    - name: Prepare release assets
+      run: |
+        mkdir release-assets
+        
+        # Package build artifacts
+        Compress-Archive -Path ".nuke/temp/w/Corney/github-release/*" -DestinationPath "release-assets/Corney-${{ steps.version.outputs.version }}-build.zip"
+        
+      shell: pwsh
+
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        $notes = @"
+        ## Corney v${{ steps.version.outputs.version }}
+        
+        ### What's New
+        - Built from commit ${{ github.sha }}
+        - .NET 8.0 single-file executable
+        - Windows crontab file executor with system tray integration
+        
+        ### Downloads
+        - **Corney-${{ steps.version.outputs.version }}-build.zip** - Full build artifacts
+        
+        ### System Requirements  
+        - Windows 10/11 or Windows Server 2016+
+        - .NET 8.0 Runtime (for non-single-file builds)
+        
+        ### Usage
+        1. Extract the executable
+        2. Configure your crontab files in the app directory
+        3. Run Corney.exe to start the scheduler
+        4. Access via system tray icon
+        "@
+        $notes | Out-File -FilePath release-notes.txt -Encoding utf8
+        echo "RELEASE_NOTES_FILE=release-notes.txt" >> $env:GITHUB_OUTPUT
+      shell: pwsh
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v${{ steps.version.outputs.version }}
+        name: Corney v${{ steps.version.outputs.version }}
+        body_path: ${{ steps.release_notes.outputs.RELEASE_NOTES_FILE }}
+        files: |
+          release-assets/*
+        draft: false
+        prerelease: false
+        generate_release_notes: true
