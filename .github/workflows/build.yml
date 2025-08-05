@@ -25,6 +25,16 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
+    
+    - name: Install AbcVersion tool
+      run: dotnet tool install --global Deneblab.AbcVersionCmd
+        
+    - name: Get version
+      id: get_version
+      run: |
+          VERSION=$(abcversion -p semversion)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Using version: $VERSION"
 
     - name: Cache .NET packages
       uses: actions/cache@v4
