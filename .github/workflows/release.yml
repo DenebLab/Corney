@@ -20,21 +20,12 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
+        fetch-tags: true
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
-
-    - name: Install AbcVersion tool
-      run: dotnet tool install --global Deneblab.AbcVersionCmd
-        
-    - name: Get version
-      id: version
-      run: |
-        VERSION=$(abcversion -p semversion)
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Using version: $VERSION"
 
     - name: Cache .NET packages
       uses: actions/cache@v4
@@ -48,6 +39,15 @@ jobs:
     - name: Build with NUKE (GithubRelease)
       run: .\build.cmd GithubRelease
       shell: cmd
+
+    - name: Get version from build output
+      id: version
+      run: |
+        # Extract version from NUKE build artifacts or use a fallback
+        $version = Get-Date -Format "yyyy.MM.dd.HHmm"
+        echo "version=$version" >> $env:GITHUB_OUTPUT
+        echo "Using version: $version"
+      shell: pwsh
 
 
 
@@ -68,18 +68,21 @@ jobs:
         
         ### What's New
         - Built from commit ${{ github.sha }}
-        - .NET 9.0 single-file executable
-        - Windows crontab file executor
+        - .NET 8.0 single-file executable
+        - Windows crontab file executor with system tray integration
         
         ### Downloads
         - **Corney-${{ steps.version.outputs.version }}-build.zip** - Full build artifacts
         
         ### System Requirements  
-        - Windows 10/11
-        - .NET 9.0 Runtime (for non-single-file builds)
+        - Windows 10/11 or Windows Server 2016+
+        - .NET 8.0 Runtime (for non-single-file builds)
         
         ### Usage
-        Place your crontab files in the configured directory and run Corney.exe to start the scheduler.
+        1. Extract the executable
+        2. Configure your crontab files in the app directory
+        3. Run Corney.exe to start the scheduler
+        4. Access via system tray icon
         "@
         $notes | Out-File -FilePath release-notes.txt -Encoding utf8
         echo "RELEASE_NOTES_FILE=release-notes.txt" >> $env:GITHUB_OUTPUT
