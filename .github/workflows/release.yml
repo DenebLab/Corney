@@ -35,19 +35,22 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-nuget-
 
+    - name: Install AbcVersion tool
+      run: dotnet tool install --global Deneblab.AbcVersionCmd          
+
+    - name: Get version from build output
+      id: version
+      run: |
+          $VERSION = abcversion -p semversion
+          echo "version=$VERSION" >> $env:GITHUB_OUTPUT
+          echo "Using version: $VERSION"
+      shell: pwsh
+
 
     - name: Build with NUKE (GithubRelease)
       run: .\build.cmd GithubRelease
       shell: cmd
 
-    - name: Get version from build output
-      id: version
-      run: |
-        # Extract actual version from NUKE build log - use the AbcVersion
-        $version = "2.0.23" # Will be dynamically extracted from build in future
-        echo "version=$version" >> $env:GITHUB_OUTPUT
-        echo "Using version: $version"
-      shell: pwsh
 
     - name: Create and push tag
       run: |
