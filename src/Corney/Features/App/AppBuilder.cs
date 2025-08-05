@@ -84,6 +84,10 @@ public class AppBuilder
                 services.AddSingleton<CrontabFileParser>();
                 services.AddSingleton<CorneyContext>();
 
+                // Add config file menu services
+                services.AddTransient<IFileOperationHelper, FileOperationHelper>();
+                services.AddTransient<IConfigFileMenuService, ConfigFileMenuService>();
+
                 // Add performance monitoring services
                 services.AddPerformanceMonitoring(options =>
                 {
