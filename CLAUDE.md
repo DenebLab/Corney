@@ -16,20 +16,59 @@ The project uses NUKE build system with cross-platform support:
 
 Main build targets:
 - `PublishLocal` (default): Complete build with packaging and publishing
-- `PublishRobeNova` : Complete build on build server
+- `PublishRobeNova`: Complete build on build server
+- `GithubRelease`: Build for GitHub releases with single-file executable
+- `Test`: Run test suite with graceful failure handling
 - `Clean`: Clean build artifacts 
 - `Restore`: Restore NuGet packages
 - `PublishLocalStandalone`: Build and copy to dev/app.standalone/
 
 ### Testing
-- **Run tests**: Use xUnit test runner with `dotnet test` or Visual Studio
+- **Run tests**: Use NUKE `./build.cmd Test` or `dotnet test` directly
 - **Test projects**: Located in `src/Corney.Tests/`
-- **Test framework**: xUnit 2.4.1
+- **Test framework**: xUnit 2.9.3
+- **Platform support**: Tests run on Windows only (due to Windows Forms dependencies)
+- **CI integration**: Tests run automatically in GitHub Actions build pipeline
+- **Test output**: TRX format with results in `.nuke/temp/w/Corney/test-result/`
 
 ### Development Environment
 - **Local standalone**: `dev/app.standalone/Corney.exe` (built executable)
 - **VS debugging**: `dev/app.vs/` contains config and logs for development
 - **Config files**: Located in `dev/app.vs/config/corney/`
+
+## CI/CD Pipeline
+
+### GitHub Actions Workflows
+The project uses GitHub Actions for automated CI/CD:
+
+#### Build Workflow (`.github/workflows/build.yml`)
+- **Triggers**: Push to `main` or `develop` branches
+- **Platform**: Windows Server 2022
+- **Steps**:
+  1. Checkout with full git history and tags
+  2. Setup .NET 8.0 SDK
+  3. Cache NuGet packages
+  4. Run NUKE `GithubRelease` target (includes tests)
+  5. Publish test results from TRX files
+  6. Upload single-file executable artifact
+
+#### Release Workflow (`.github/workflows/release.yml`)
+- **Triggers**: Push to `production` branch
+- **Features**:
+  1. Uses AbcVersion tool for semantic versioning
+  2. Creates and pushes git tags automatically
+  3. Builds single-file executable via NUKE
+  4. Packages release assets
+  5. Creates GitHub Release with artifacts
+  6. Generates detailed release notes
+
+#### Dependencies Workflow (`.github/workflows/dependencies.yml`)
+- **Automated dependency updates and security scanning**
+
+### Version Management
+- **AbcVersion**: Semantic versioning based on git history and tags
+- **Build metadata**: Includes branch, commit SHA, build timestamp
+- **Repository root**: Configured for proper git repository detection in CI
 
 ## Architecture
 
@@ -84,6 +123,41 @@ Uses a sophisticated bootstrap pattern in `Common/Bootstrap/`:
 3. **App Events**: Publish `AppStartingEvent` → `AppStartedEvent` → `StartCorneyReq`
 4. **Main Loop**: Windows Forms message pump with system tray integration
 
+## Installation and Deployment
+
+### PowerShell Installer (`scripts/install.ps1`)
+Enterprise-grade installer with the following features:
+- **GitHub API integration**: Downloads from releases automatically
+- **Version management**: Side-by-side installations in `%LOCALAPPDATA%\Deneblab\Corney\`
+- **System integration**: Desktop shortcuts and Windows startup registration
+- **Safe updates**: Process management with retry logic for file operations
+- **Organized structure**: Separate directories for app, config, logs, and cache
+
+#### Installer Parameters
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `-Version` | Install specific version | `-Version "2.0.23"` |
+| `-ForceUpdate` | Force reinstall if version exists | `-ForceUpdate` |
+| `-SkipShortcut` | Don't create desktop shortcut | `-SkipShortcut` |
+| `-SkipStartup` | Don't add to Windows startup | `-SkipStartup` |
+| `-Silent` | Install without launching app | `-Silent` |
+
+#### Installation Directory Structure
+```
+%LOCALAPPDATA%\Deneblab\Corney\
+├── app\Corney.{version}\     # Versioned installations
+├── config\                   # Configuration files
+├── log\                     # Application logs
+├── .syrup\                  # Cache and metadata
+└── Corney.lnk               # Main shortcut
+```
+
+### Deployment Artifacts
+- **Single-file executable**: Self-contained Windows executable
+- **Build artifacts**: Complete build output with dependencies
+- **Release packages**: ZIP archives via GitHub Releases
+- **Version metadata**: Embedded version information via AbcVersion
+
 ## Configuration
 
 ### Environment Configuration
@@ -107,8 +181,22 @@ The application continuously monitors crontab files and executes scheduled comma
 ## Build and Packaging
 
 The NUKE build system provides:
-- **Assembly patching**: Version metadata injection during build
-- **Dependency merging**: LibZ for single-executable packaging
-- **NuGet packaging**: Automated package creation
-- **Azure DevOps integration**: Automated CI/CD pipeline support
-- **Artifact management**: ZIP and NuGet package generation
+- **Assembly patching**: Version metadata injection during build via AbcVersion
+- **Single-file packaging**: .NET 8.0 single-file executable generation
+- **Cross-platform builds**: Windows, Linux, macOS support for build system
+- **GitHub Actions integration**: Automated CI/CD pipeline support
+- **Artifact management**: ZIP archives and executable generation
+- **Test integration**: Automated test execution with graceful failure handling
+- **Version management**: Git-based semantic versioning with build metadata
+
+### Build Outputs
+- **Development**: `dev/app.vs/` for Visual Studio debugging
+- **Local builds**: Via `PublishLocal` target
+- **GitHub releases**: Single-file executable via `GithubRelease` target
+- **Test results**: TRX files in `.nuke/temp/w/Corney/test-result/`
+
+### Important Build Notes
+- **Windows-only tests**: Test suite requires Windows due to Windows Forms dependencies
+- **Platform detection**: Build system automatically detects Windows vs Linux/macOS
+- **Git repository**: Requires proper git repository for version calculation
+- **Line endings**: Automatic CRLF to LF conversion for cross-platform compatibility

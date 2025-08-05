@@ -47,18 +47,7 @@ class Build : NukeBuild
                 $"AzureDevOps ArtifactDir: '{Environment.GetEnvironmentVariable("BUILD_ARTIFACTSTAGINGDIRECTORY")}'");
         });
 
-    Target ConfigureAzureDevOps => _ => _
-        .DependsOn(Information)
-        .OnlyWhenStatic(() => IsAzureDevOps)
-        .Executes(() =>
-        {
-            Log.Information($"Set version to AzureDevOps: {AbcVersion.SemVersion}");
-            // https://github.com/microsoft/azure-pipelines-tasks/blob/master/docs/authoring/commands.md
-            Log.Information($"##vso[build.updatebuildnumber]{AbcVersion.SemVersion}");
-        });
-
     Target Clean => _ => _
-        .DependsOn(ConfigureAzureDevOps)
         .Executes(() =>
         {
             TmpBuild.CreateOrCleanDirectory();
