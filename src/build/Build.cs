@@ -250,6 +250,41 @@ class Build : NukeBuild
         });
 
 
+    Target GithubRelease => _ => _
+        .DependsOn(Information, Clean)
+        .Executes(() =>
+        {
+            var p = CorneyWinProject;
+            if (p == null) return;
+
+            Log.Information($"Build Single-File; Project file: {p.Name}; Version: {AbcVersion.SemVersion}");
+            var outDir = TmpBuild / p.Name / "github-release";
+            outDir.CreateOrCleanDirectory();
+
+
+            // Restore with runtime identifier
+            DotNetRestore(s => s
+                .SetProjectFile(p.Path)
+                .SetRuntime("win-x64")
+            );
+
+            DotNetPublish(o => o
+                .SetProject(p.Path)
+                .EnableNoRestore()
+                .SetConfiguration(Configuration)
+                .SetOutput(outDir)
+                .EnablePublishSingleFile()
+                .SetSelfContained(false)
+                .SetRuntime("win-x64")
+                .SetVersion(AbcVersion.SemVersion)
+                .SetFileVersion(AbcVersion.SemVersion)
+                .SetAssemblyVersion(AbcVersion.SemVersion)
+                .SetInformationalVersion(AbcVersion.InformationalVersion)
+            );
+
+            Log.Information($"Single-file executable created: {outDir / "Corney.exe"}");
+        });
+
     Target PublishSingleFile => _ => _
         .DependsOn(Information,Clean)
         .Executes(() =>

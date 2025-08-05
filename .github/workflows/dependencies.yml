@@ -1,0 +1,101 @@
+name: Update Dependencies
+
+on:
+  schedule:
+    # Run weekly on Sundays at 6 AM UTC
+    - cron: '0 6 * * 0'
+  workflow_dispatch:
+
+jobs:
+  update-dependencies:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Install dotnet-outdated
+      run: dotnet tool install --global dotnet-outdated-tool
+
+    - name: Check for outdated packages
+      id: outdated
+      run: |
+        $output = dotnet outdated src/Corney.sln --output json
+        $outdatedPackages = $output | ConvertFrom-Json
+        
+        if ($outdatedPackages.Projects.Count -gt 0) {
+          echo "HAS_UPDATES=true" >> $env:GITHUB_OUTPUT
+          $output | Out-File -FilePath outdated-packages.json
+        } else {
+          echo "HAS_UPDATES=false" >> $env:GITHUB_OUTPUT
+        }
+      shell: pwsh
+
+    - name: Update NuGet packages
+      if: steps.outdated.outputs.HAS_UPDATES == 'true' 
+      run: |
+        # Update packages to latest minor versions (safer updates)
+        dotnet outdated src/Corney.sln --upgrade --version-lock Minor
+        
+        # Restore after updates
+        dotnet restore src/Corney.sln
+      shell: pwsh
+
+    - name: Build and test after updates
+      if: steps.outdated.outputs.HAS_UPDATES == 'true'
+      run: |
+        dotnet build src/Corney.sln --configuration Release
+        dotnet test src/Corney.Tests/Corney.Tests.csproj --configuration Release --no-build
+
+    - name: Generate update summary
+      if: steps.outdated.outputs.HAS_UPDATES == 'true'
+      id: summary
+      run: |
+        $date = Get-Date -Format "yyyy-MM-dd"
+        $title = "chore: update NuGet packages ($date)"
+        echo "PR_TITLE=$title" >> $env:GITHUB_OUTPUT
+        
+        $body = @"
+        ## Automated Dependency Updates
+        
+        This PR updates NuGet packages to their latest minor versions.
+        
+        ### Changes
+        - Updated packages using `dotnet outdated` tool
+        - All updates are minor version bumps (safer updates)
+        - Build and tests verified after updates
+        
+        ### Verification
+        - ✅ Build successful
+        - ✅ Tests passed
+        
+        Generated on: $date
+        "@
+        
+        $body | Out-File -FilePath pr-body.txt -Encoding utf8
+        echo "PR_BODY_FILE=pr-body.txt" >> $env:GITHUB_OUTPUT
+      shell: pwsh
+
+    - name: Create Pull Request
+      if: steps.outdated.outputs.HAS_UPDATES == 'true'
+      uses: peter-evans/create-pull-request@v6
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: ${{ steps.summary.outputs.PR_TITLE }}
+        title: ${{ steps.summary.outputs.PR_TITLE }}
+        body-path: ${{ steps.summary.outputs.PR_BODY_FILE }}
+        branch: dependencies/nuget-updates
+        delete-branch: true
+        labels: |
+          dependencies
+          automated

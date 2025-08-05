@@ -1,9 +1,10 @@
-﻿using System;
-using System.Windows.Forms;
-using Corney.Features.App;
+﻿using Corney.Features.App;
 using Corney.Properties;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Security.Principal;
+using System.Windows.Forms;
 
 namespace Corney;
 
@@ -17,6 +18,7 @@ public class CorneyContext : ApplicationContext
         _mediator = mediator;
         var exitMenuItem = new ToolStripMenuItem("Exit", null, OnExit);
         var aboutMenuItem = new ToolStripMenuItem($"Corney - {registry.AppVersion.Sem}");
+        var isAdminMenuItem = new ToolStripMenuItem($"Is Running As Administrator: {PrivilegeHelper.IsRunAsAdministrator()}");
 
         _notifyIcon = new NotifyIcon
         {
@@ -27,6 +29,7 @@ public class CorneyContext : ApplicationContext
         };
 
         _notifyIcon.ContextMenuStrip.Items.Add(aboutMenuItem);
+        _notifyIcon.ContextMenuStrip.Items.Add(isAdminMenuItem);
         _notifyIcon.ContextMenuStrip.Items.Add(exitMenuItem);
         _notifyIcon.DoubleClick += (s, e) => MessageBox.Show("App is running in tray.");
     }
@@ -36,5 +39,14 @@ public class CorneyContext : ApplicationContext
 
         _notifyIcon.Visible = false;
         Application.Exit();
+    }
+}
+public static class PrivilegeHelper
+{
+    public static bool IsRunAsAdministrator()
+    {
+        using WindowsIdentity identity = WindowsIdentity.GetCurrent();
+        WindowsPrincipal principal = new WindowsPrincipal(identity);
+        return principal.IsInRole(WindowsBuiltInRole.Administrator);
     }
 }
