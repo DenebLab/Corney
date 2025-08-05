@@ -96,6 +96,26 @@ class Build : NukeBuild
             DotNetRestore(s => s.SetProjectFile(CorneyWinProject));
         });
 
+    Target Test => _ => _
+        .DependsOn(Restore)
+        .Executes(() =>
+        {
+            var testProject = Solution.GetProject("Corney.Tests");
+            if (testProject == null)
+            {
+                Log.Warning("Test project not found, skipping tests");
+                return;
+            }
+
+            DotNetTest(s => s
+                .SetProjectFile(testProject)
+                .SetConfiguration(Configuration)
+                .SetLoggers("trx")
+                .SetResultsDirectory("TestResults")
+                .SetDataCollector("XPlat Code Coverage")
+                .EnableNoBuild());
+        });
+
     Target PublishAzureDevOpsArtifacts => _ => _
         .Produces(ArtifactsDir / "*.nupkg")
         .OnlyWhenStatic(() => IsAzureDevOps)
@@ -251,7 +271,7 @@ class Build : NukeBuild
 
 
     Target GithubRelease => _ => _
-        .DependsOn(Information, Clean)
+        .DependsOn(Information, Clean, Test)
         .Executes(() =>
         {
             var p = CorneyWinProject;
