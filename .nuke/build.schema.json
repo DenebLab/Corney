@@ -25,7 +25,6 @@
       "type": "string",
       "enum": [
         "Clean",
-        "ConfigureAzureDevOps",
         "GithubRelease",
         "Information",
         "Restore",

@@ -8,7 +8,7 @@
 		<AssemblyName>Corney</AssemblyName>
 		<Nullable>disable</Nullable>
 		<ImplicitUsings>disable</ImplicitUsings>
-		<ApplicationIcon>Resources\AppIco.ico</ApplicationIcon>
+		<ApplicationIcon>Resources\clock_green.ico</ApplicationIcon>
 		<EnableWindowsTargeting>true</EnableWindowsTargeting>
 		<GenerateAssemblyInfo>true</GenerateAssemblyInfo>
 		<UseWindowsForms>true</UseWindowsForms>
@@ -26,6 +26,21 @@
 		<PackageReference Include="Deneblab.Common" Version="1.1.65" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.8" />
 		<PackageReference Include="System.Reactive" Version="6.0.1" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Compile Update="Properties\Settings.Designer.cs">
+	    <DesignTimeSharedInput>True</DesignTimeSharedInput>
+	    <AutoGen>True</AutoGen>
+	    <DependentUpon>Settings.settings</DependentUpon>
+	  </Compile>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Update="Properties\Settings.settings">
+	    <Generator>SettingsSingleFileGenerator</Generator>
+	    <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+	  </None>
 	</ItemGroup>
 
 

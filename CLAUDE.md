@@ -16,72 +16,33 @@ The project uses NUKE build system with cross-platform support:
 
 Main build targets:
 - `PublishLocal` (default): Complete build with packaging and publishing
-- `PublishRobeNova`: Complete build on build server
-- `GithubRelease`: Build for GitHub releases with single-file executable
-- `Test`: Run test suite with graceful failure handling
+- `PublishRobeNova` : Complete build on build server
 - `Clean`: Clean build artifacts 
 - `Restore`: Restore NuGet packages
 - `PublishLocalStandalone`: Build and copy to dev/app.standalone/
 
 ### Testing
-- **Run tests**: Use NUKE `./build.cmd Test` or `dotnet test` directly
+- **Run tests**: Use xUnit test runner with `dotnet test` or Visual Studio
 - **Test projects**: Located in `src/Corney.Tests/`
-- **Test framework**: xUnit 2.9.3
-- **Platform support**: Tests run on Windows only (due to Windows Forms dependencies)
-- **CI integration**: Tests run automatically in GitHub Actions build pipeline
-- **Test output**: TRX format with results in `.nuke/temp/w/Corney/test-result/`
+- **Test framework**: xUnit 2.4.1
 
 ### Development Environment
 - **Local standalone**: `dev/app.standalone/Corney.exe` (built executable)
 - **VS debugging**: `dev/app.vs/` contains config and logs for development
 - **Config files**: Located in `dev/app.vs/config/corney/`
 
-## CI/CD Pipeline
-
-### GitHub Actions Workflows
-The project uses GitHub Actions for automated CI/CD:
-
-#### Build Workflow (`.github/workflows/build.yml`)
-- **Triggers**: Push to `main` or `develop` branches
-- **Platform**: Windows Server 2022
-- **Steps**:
-  1. Checkout with full git history and tags
-  2. Setup .NET 8.0 SDK
-  3. Cache NuGet packages
-  4. Run NUKE `GithubRelease` target (includes tests)
-  5. Publish test results from TRX files
-  6. Upload single-file executable artifact
-
-#### Release Workflow (`.github/workflows/release.yml`)
-- **Triggers**: Push to `production` branch
-- **Features**:
-  1. Uses AbcVersion tool for semantic versioning
-  2. Creates and pushes git tags automatically
-  3. Builds single-file executable via NUKE
-  4. Packages release assets
-  5. Creates GitHub Release with artifacts
-  6. Generates detailed release notes
-
-#### Dependencies Workflow (`.github/workflows/dependencies.yml`)
-- **Automated dependency updates and security scanning**
-
-### Version Management
-- **AbcVersion**: Semantic versioning based on git history and tags
-- **Build metadata**: Includes branch, commit SHA, build timestamp
-- **Repository root**: Configured for proper git repository detection in CI
-
 ## Architecture
 
 ### Project Structure
-- **Corney** (main executable): Windows Forms application with system tray integration
-- **Corney.Core** (library): Core business logic and features  
-- **Corney.Tests** (tests): xUnit test suite
+- **Corney** (main executable): Windows Forms application with system tray integration targeting net8.0-windows
+- **Corney.Tests** (tests): xUnit test suite targeting net8.0-windows  
 - **build** (NUKE): Build automation and packaging
+- **scripts**: PowerShell installer for automated deployment
 
 ### Core Components
 
 #### Feature-Based Architecture
-The codebase follows feature-based organization in `Corney.Core/Features/`:
+The codebase follows feature-based organization in `src/Corney/Features/`:
 
 - **Cron**: Core scheduling functionality
   - `CronService`: Main scheduling engine using Cronos library
@@ -99,64 +60,29 @@ The codebase follows feature-based organization in `Corney.Core/Features/`:
   - `StringHelper`: String manipulation utilities
 
 #### Application Bootstrap
-Uses a sophisticated bootstrap pattern in `Common/Bootstrap/`:
-- `Boot`: Main bootstrapper with assembly management
-- `AppEnvironment`/`AppEnvironmentBuilder`: Environment configuration
-- `AppVersion`/`AppVersionBuilder`: Version management with build metadata
+Uses a sophisticated bootstrap pattern:
+- `App`: Main entry point with singleton instance checking using Mutex
+- `AppBuilder`: Core application builder handling configuration, registry, and host creation  
+- `CorneyRegistry`: Application configuration registry
+- `DLabHost`: Environment and logging management via Deneblab.Common
 
 #### Dependency Injection
-- **Container**: Autofac for dependency injection
-- **Mediator**: MediatR for CQRS pattern with events like `AppStartingEvent`, `AppStartedEvent`
-- **Modules**: Feature-based Autofac modules in each feature's `Config/` folder
+- **Container**: Microsoft.Extensions.Hosting with built-in DI container
+- **Mediator**: MediatR for CQRS pattern 
+- **Services**: Registered in `AppBuilder.CreateHost()` method
 
 ### Key Dependencies
-- **Autofac 4.6.2**: Dependency injection container
-- **MediatR 4.0.1**: Mediator pattern for CQRS
-- **Cronos 0.6.3**: Cron expression parsing and scheduling
-- **NLog 4.7.15**: Logging framework
-- **Newtonsoft.Json 13.0.1**: JSON serialization
-- **System.Reactive**: Reactive extensions for async operations
+- **Cronos 0.11.0**: Cron expression parsing and scheduling
+- **MediatR 12.5.0**: Mediator pattern for CQRS
+- **Microsoft.Extensions.Hosting 9.0.8**: Generic host and dependency injection
+- **Deneblab.Common 1.1.65**: Custom framework for app environment and logging
+- **System.Reactive 6.0.1**: Reactive extensions for async operations
 
 ### Application Flow
-1. **Bootstrap**: Single instance check, logging setup, assembly registration
-2. **Container Build**: Register Autofac modules from all features
-3. **App Events**: Publish `AppStartingEvent` → `AppStartedEvent` → `StartCorneyReq`
-4. **Main Loop**: Windows Forms message pump with system tray integration
-
-## Installation and Deployment
-
-### PowerShell Installer (`scripts/install.ps1`)
-Enterprise-grade installer with the following features:
-- **GitHub API integration**: Downloads from releases automatically
-- **Version management**: Side-by-side installations in `%LOCALAPPDATA%\Deneblab\Corney\`
-- **System integration**: Desktop shortcuts and Windows startup registration
-- **Safe updates**: Process management with retry logic for file operations
-- **Organized structure**: Separate directories for app, config, logs, and cache
-
-#### Installer Parameters
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `-Version` | Install specific version | `-Version "2.0.23"` |
-| `-ForceUpdate` | Force reinstall if version exists | `-ForceUpdate` |
-| `-SkipShortcut` | Don't create desktop shortcut | `-SkipShortcut` |
-| `-SkipStartup` | Don't add to Windows startup | `-SkipStartup` |
-| `-Silent` | Install without launching app | `-Silent` |
-
-#### Installation Directory Structure
-```
-%LOCALAPPDATA%\Deneblab\Corney\
-├── app\Corney.{version}\     # Versioned installations
-├── config\                   # Configuration files
-├── log\                     # Application logs
-├── .syrup\                  # Cache and metadata
-└── Corney.lnk               # Main shortcut
-```
-
-### Deployment Artifacts
-- **Single-file executable**: Self-contained Windows executable
-- **Build artifacts**: Complete build output with dependencies
-- **Release packages**: ZIP archives via GitHub Releases
-- **Version metadata**: Embedded version information via AbcVersion
+1. **Bootstrap**: Single instance check via Mutex, DLabHost setup with logging
+2. **AppBuilder**: Creates configuration, registry, and Microsoft.Extensions.Hosting host
+3. **Service Registration**: ICronService, ProcessWrapper, and other services registered in DI container
+4. **Main Loop**: Windows Forms message pump with system tray integration via CorneyContext
 
 ## Configuration
 
@@ -181,22 +107,8 @@ The application continuously monitors crontab files and executes scheduled comma
 ## Build and Packaging
 
 The NUKE build system provides:
-- **Assembly patching**: Version metadata injection during build via AbcVersion
-- **Single-file packaging**: .NET 8.0 single-file executable generation
-- **Cross-platform builds**: Windows, Linux, macOS support for build system
-- **GitHub Actions integration**: Automated CI/CD pipeline support
-- **Artifact management**: ZIP archives and executable generation
-- **Test integration**: Automated test execution with graceful failure handling
-- **Version management**: Git-based semantic versioning with build metadata
-
-### Build Outputs
-- **Development**: `dev/app.vs/` for Visual Studio debugging
-- **Local builds**: Via `PublishLocal` target
-- **GitHub releases**: Single-file executable via `GithubRelease` target
-- **Test results**: TRX files in `.nuke/temp/w/Corney/test-result/`
-
-### Important Build Notes
-- **Windows-only tests**: Test suite requires Windows due to Windows Forms dependencies
-- **Platform detection**: Build system automatically detects Windows vs Linux/macOS
-- **Git repository**: Requires proper git repository for version calculation
-- **Line endings**: Automatic CRLF to LF conversion for cross-platform compatibility
+- **Assembly patching**: Version metadata injection during build
+- **Dependency merging**: LibZ for single-executable packaging
+- **NuGet packaging**: Automated package creation
+- **Azure DevOps integration**: Automated CI/CD pipeline support
+- **Artifact management**: ZIP and NuGet package generation
