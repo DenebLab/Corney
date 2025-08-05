@@ -4,7 +4,6 @@ using System.Security.Principal;
 using System.Windows.Forms;
 using Corney.Features.App;
 using Corney.Properties;
-using MediatR;
 using Microsoft.Extensions.Logging;
 
 namespace Corney;
@@ -13,7 +12,7 @@ public class CorneyContext : ApplicationContext
 {
     private readonly NotifyIcon _notifyIcon;
 
-    public CorneyContext(ILogger<CorneyContext> log, CorneyRegistry registry, IMediator mediator,
+    public CorneyContext(ILogger<CorneyContext> log, CorneyRegistry registry,
         IConfigFileMenuService configFileMenuService)
     {
         var exitMenuItem = new ToolStripMenuItem("Exit", null, OnExit);
