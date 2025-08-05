@@ -33,6 +33,7 @@ class Build : NukeBuild
 
     AbcVersion AbcVersion => AbcVersionFactory.CreateOneBuilder()
         .SetDateTime(BuildDate)
+        .SetRepositoryPath(RootDirectory)
         .Build(); // Creates new instance
 
     Target Information => _ => _
