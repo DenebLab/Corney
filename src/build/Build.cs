@@ -25,12 +25,9 @@ class Build : NukeBuild
 
     readonly bool IsAzureDevOps = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AGENT_NAME")) == false;
     [Solution] readonly Solution Solution;
-
-
     Project CorneyWinProject => Solution.GetProject("Corney").NotNull();
     AbsolutePath SourceDirectory => RootDirectory / "src";
     AbsolutePath TmpBuild => TemporaryDirectory / "w";
-
     AbcVersion AbcVersion => AbcVersionFactory.CreateOneBuilder()
         .SetDateTime(BuildDate)
         .SetRepositoryRoot(RootDirectory)
