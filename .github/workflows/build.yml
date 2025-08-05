@@ -3,8 +3,7 @@ name: Build and Test
 on:
   push:
     branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
+
 
 env:
   DOTNET_NOLOGO: true
@@ -24,7 +23,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '9.0.x'
+        dotnet-version: '8.0.x'
 
     - name: Cache .NET packages
       uses: actions/cache@v4
@@ -34,11 +33,6 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-nuget-
 
-    - name: Restore dependencies
-      run: dotnet restore src/Corney.sln
-
-    - name: Build solution
-      run: dotnet build src/Corney.sln --configuration Release --no-restore
 
     - name: Run tests
       run: dotnet test src/Corney.Tests/Corney.Tests.csproj --configuration Release --no-build --verbosity normal --logger trx --results-directory "TestResults" --collect:"XPlat Code Coverage"
@@ -59,24 +53,13 @@ jobs:
         flags: unittests
         name: codecov-umbrella
 
-    - name: Build with NUKE (PublishSingleFile)
-      run: .\build.cmd PublishSingleFile
+    - name: Build with NUKE (GithubRelease)
+      run: .\build.cmd GithubRelease
       shell: cmd
 
     - name: Upload single-file executable
       uses: actions/upload-artifact@v4
       with:
         name: corney-executable-${{ github.sha }}
-        path: dev/app.standalone/Corney.exe
-        retention-days: 7
-
-    - name: Build with NUKE (PublishLocal) 
-      run: .\build.cmd PublishLocal
-      shell: cmd
-
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: corney-build-${{ github.sha }}
-        path: .nuke/temp/w/Corney/build/
+        path: .nuke/temp/w/Corney/github-release/Corney.exe
         retention-days: 7

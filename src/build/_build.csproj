@@ -20,5 +20,8 @@
 	<ItemGroup>
 		<PackageDownload Include="NuGet.CommandLine" Version="[6.12.2]" />
 	</ItemGroup>
+	<ItemGroup>
+	  <None Remove="..\..\.github\workflows\pr.yml" />
+	</ItemGroup>
 
 </Project>
